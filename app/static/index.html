@@ -1,0 +1,38 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Textbook Tutor</title>
+    <link rel="stylesheet" href="/static/style.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">📚 <span id="app-name">Textbook Tutor</span></div>
+      <div class="class-name" id="class-name">Class</div>
+    </header>
+
+    <main id="chat">
+      <div class="welcome" id="welcome">
+        <h2>Ask your class anything</h2>
+        <p>Your AI teacher answers from your class textbook, step by step.</p>
+      </div>
+    </main>
+
+    <footer>
+      <div class="input-row">
+        <textarea id="question" rows="2" placeholder="Type your question, or attach a photo/PDF of a question paper..."></textarea>
+        <label class="attach-btn" for="attach" title="Attach a photo or PDF">📎</label>
+        <input type="file" id="attach" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff" hidden />
+        <button class="primary" id="send">Ask</button>
+      </div>
+      <div class="file-chip hidden" id="file-chip">
+        <span id="file-name"></span>
+        <button id="clear-file">✕</button>
+      </div>
+      <div class="error hidden" id="error"></div>
+    </footer>
+
+    <script src="/static/app.js"></script>
+  </body>
+</html>

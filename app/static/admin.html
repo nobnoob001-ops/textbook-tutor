@@ -1,0 +1,94 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>Admin - Textbook Tutor</title>
+    <link rel="stylesheet" href="/static/style.css" />
+    <link rel="stylesheet" href="/static/admin.css" />
+  </head>
+  <body>
+    <header>
+      <div class="brand">🛠️ Admin <span id="app-name"></span></div>
+      <button class="ghost" id="logout" style="display: none">Log out</button>
+    </header>
+
+    <section id="login" class="admin-main hidden">
+      <div class="card narrow">
+        <h2>Admin login</h2>
+        <p class="hint">Enter the admin password to manage textbooks and settings.</p>
+        <input type="password" id="password" placeholder="Admin password" />
+        <button class="primary" id="login-btn">Login</button>
+        <div class="error hidden" id="login-error"></div>
+      </div>
+    </section>
+
+    <section id="panel" class="admin-main hidden">
+      <nav class="tabs">
+        <button class="tab active" data-tab="upload">Add Textbook</button>
+        <button class="tab" data-tab="library">Library</button>
+        <button class="tab" data-tab="settings">Settings</button>
+      </nav>
+
+      <div id="tab-upload" class="tab-panel">
+        <div class="card">
+          <h2>Add a textbook</h2>
+          <p class="hint">PDF, photos of pages, or text files. It becomes searchable when ready.</p>
+          <div class="dropzone" id="dropzone">
+            <p>Drag &amp; drop your file here</p>
+            <p class="hint">or</p>
+            <button class="primary" id="pick-file">Choose file</button>
+            <input type="file" id="file-input" hidden />
+          </div>
+          <div id="upload-progress" class="upload-progress hidden">
+            <p>Processing… <span id="progress-label"></span></p>
+          </div>
+          <div class="error hidden" id="upload-error"></div>
+        </div>
+      </div>
+
+      <div id="tab-library" class="tab-panel hidden">
+        <div class="card">
+          <h2>Library</h2>
+          <div id="library-list">
+            <p class="hint">Loading…</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-settings" class="tab-panel hidden">
+        <div class="card">
+          <h2>Settings</h2>
+          <label>Class name</label>
+          <input id="s-class" placeholder="e.g. Class 10 Physics" />
+
+          <h3>Chat brain (answers questions)</h3>
+          <label>API Base URL</label>
+          <input id="s-chat-base" placeholder="https://api.openai.com/v1" />
+          <label>API Key</label>
+          <input id="s-chat-key" placeholder="sk-..." />
+          <label>Model</label>
+          <input id="s-chat-model" placeholder="gpt-4o-mini" />
+
+          <h3>Embeddings (searching the book)</h3>
+          <label>API Base URL</label>
+          <input id="s-embed-base" placeholder="https://api.openai.com/v1" />
+          <label>API Key</label>
+          <input id="s-embed-key" placeholder="sk-..." />
+          <label>Model</label>
+          <input id="s-embed-model" placeholder="text-embedding-3-small" />
+
+          <h3>Security</h3>
+          <label>Change admin password</label>
+          <input id="s-admin-pass" placeholder="New admin password" />
+
+          <button class="primary" id="save-settings">Save settings</button>
+          <div class="error hidden" id="settings-error"></div>
+          <div class="ok hidden" id="settings-ok"></div>
+        </div>
+      </div>
+    </section>
+
+    <script src="/static/admin.js"></script>
+  </body>
+</html>

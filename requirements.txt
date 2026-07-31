@@ -1,0 +1,8 @@
+fastapi
+uvicorn[standard]
+httpx
+numpy
+pypdf
+pdf2image
+pytesseract
+Pillow
