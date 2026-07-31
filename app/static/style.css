@@ -252,3 +252,135 @@ button.primary:disabled {
 .hidden {
   display: none !important;
 }
+
+#student-tabs {
+  max-width: 820px;
+  width: 100%;
+  margin: 14px auto 0;
+  padding: 0 22px;
+  flex-wrap: wrap;
+}
+
+.student-panel {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+.student-panel > .card {
+  width: 100%;
+  max-width: 820px;
+  margin: 18px auto;
+}
+
+.student-panel .card textarea,
+.student-panel .card input {
+  width: 100%;
+}
+
+.student-panel .input-row input {
+  flex: 1;
+  margin-bottom: 0;
+}
+
+.sheet-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  background: var(--card);
+}
+
+.sheet-question {
+  font-weight: 700;
+  margin-bottom: 6px;
+}
+
+.sheet-answer {
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.focus-prediction {
+  background: #eef2ff;
+  border: 1px solid var(--primary);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin: 16px 0;
+  font-size: 14px;
+  line-height: 1.6;
+  white-space: pre-wrap;
+}
+
+.topic-row {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  margin-bottom: 10px;
+  background: var(--card);
+}
+
+.topic-meta {
+  font-size: 12px;
+  font-weight: 600;
+  color: var(--primary-dark);
+}
+
+.topic-text {
+  color: var(--muted);
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.flashcard-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(220px, 1fr));
+  gap: 12px;
+  margin-top: 16px;
+}
+
+.flashcard {
+  perspective: 800px;
+  cursor: pointer;
+  height: 150px;
+}
+
+.flashcard-inner {
+  position: relative;
+  width: 100%;
+  height: 100%;
+  transform-style: preserve-3d;
+  transition: transform 0.5s;
+}
+
+.flashcard.flipped .flashcard-inner {
+  transform: rotateY(180deg);
+}
+
+.flashcard-face {
+  position: absolute;
+  inset: 0;
+  backface-visibility: hidden;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 12px;
+  text-align: center;
+  border-radius: 12px;
+  border: 1px solid var(--border);
+  background: var(--card);
+  box-shadow: var(--shadow);
+  font-size: 14px;
+  line-height: 1.4;
+  overflow-y: auto;
+}
+
+.flashcard-face.back {
+  transform: rotateY(180deg);
+  background: #eef2ff;
+  border-color: var(--primary);
+  color: var(--primary-dark);
+  font-weight: 600;
+}

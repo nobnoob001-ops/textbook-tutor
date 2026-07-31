@@ -27,7 +27,17 @@ CREATE TABLE IF NOT EXISTS chunks (
     chunk_index INTEGER,
     content TEXT NOT NULL,
     embedding TEXT,
+    page TEXT,
     FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS papers (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    content TEXT,
+    status TEXT DEFAULT 'ready',
+    matches TEXT,
+    added_at TEXT DEFAULT (datetime('now'))
 );
 """
 
@@ -36,9 +46,16 @@ def init_db():
     conn = _connect()
     try:
         conn.executescript(SCHEMA)
+        _migrate(conn)
         conn.commit()
     finally:
         conn.close()
+
+
+def _migrate(conn):
+    columns = [row["name"] for row in conn.execute("PRAGMA table_info(chunks)")]
+    if "page" not in columns:
+        conn.execute("ALTER TABLE chunks ADD COLUMN page TEXT")
 
 
 def _connect():
@@ -137,15 +154,19 @@ def delete_book(book_id: int):
         conn.close()
 
 
-def add_chunks(book_id: int, contents: list[str], embeddings: list[list[float]]):
+def add_chunks(
+    book_id: int, contents: list[str], embeddings: list[list[float]], pages: list[str | None] | None = None
+):
     conn = _connect()
     try:
+        if pages is None:
+            pages = [None] * len(contents)
         rows = [
-            (book_id, i, content, json.dumps(emb))
+            (book_id, i, content, json.dumps(emb), pages[i])
             for i, (content, emb) in enumerate(zip(contents, embeddings))
         ]
         conn.executemany(
-            "INSERT INTO chunks (book_id, chunk_index, content, embedding) VALUES (?, ?, ?, ?)",
+            "INSERT INTO chunks (book_id, chunk_index, content, embedding, page) VALUES (?, ?, ?, ?, ?)",
             rows,
         )
         conn.commit()
@@ -157,11 +178,66 @@ def get_all_chunks() -> list[tuple]:
     conn = _connect()
     try:
         rows = conn.execute(
-            "SELECT c.id, b.name AS book, c.content, c.embedding "
+            "SELECT c.id, b.name AS book, c.content, c.embedding, c.page "
             "FROM chunks c JOIN books b ON b.id = c.book_id "
             "WHERE b.status = 'ready'"
         ).fetchall()
-        return [(r["id"], r["book"], r["content"], r["embedding"]) for r in rows]
+        return [
+            (r["id"], r["book"], r["content"], r["embedding"], r["page"])
+            for r in rows
+        ]
+    finally:
+        conn.close()
+
+
+def add_paper(name: str, content: str) -> int:
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "INSERT INTO papers (name, content) VALUES (?, ?)", (name, content)
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def set_paper_matches(paper_id: int, matches: list):
+    conn = _connect()
+    try:
+        conn.execute(
+            "UPDATE papers SET matches = ? WHERE id = ?", (json.dumps(matches), paper_id)
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_papers() -> list[dict]:
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT * FROM papers ORDER BY added_at DESC").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_all_paper_matches() -> list[dict]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT id, name, matches FROM papers WHERE matches IS NOT NULL"
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def delete_paper(paper_id: int):
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM papers WHERE id = ?", (paper_id,))
+        conn.commit()
     finally:
         conn.close()
 

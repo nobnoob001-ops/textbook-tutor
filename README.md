@@ -20,9 +20,13 @@ The AI never gets stuck: if the textbook doesn't cover a question, it still expl
 ## Features
 
 - Student page — ask questions by typing or by uploading a photo/PDF of a question paper
-- Admin page — add/remove textbooks, manage the library
+- **Answer sheet** — paste or upload a past question paper, get every question answered from the textbook
+- **Exam focus** — the app studies past papers you upload and predicts which textbook topics are most likely on the next exam
+- **Revision notes** — type a topic/chapter, get quick 5-minute notes from the textbook
+- **Flashcards** — type a topic, get study cards (tap to flip) made from the textbook
+- Admin page — add/remove textbooks, manage the library, upload past question papers
 - Settings — plug in any OpenAI-compatible API (OpenAI, Gemini, DeepSeek, Groq, Mistral, OpenRouter, ...)
-- RAG search — answers are grounded in the class textbook
+- RAG search — answers are grounded in the class textbook, with page citations
 - OCR — reads printed PDFs and photos of pages
 
 ## Requirements

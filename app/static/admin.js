@@ -17,6 +17,12 @@ const uploadError = document.getElementById("upload-error");
 
 const libraryList = document.getElementById("library-list");
 
+const paperDropzone = document.getElementById("paper-dropzone");
+const paperInput = document.getElementById("paper-input");
+const pickPaper = document.getElementById("pick-paper");
+const paperUploadError = document.getElementById("paper-upload-error");
+const papersList = document.getElementById("papers-list");
+
 const settingsError = document.getElementById("settings-error");
 const settingsOk = document.getElementById("settings-ok");
 
@@ -98,6 +104,7 @@ document.querySelectorAll(".tab").forEach((tab) => {
     tab.classList.add("active");
     document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
     if (tab.dataset.tab === "library") loadLibrary();
+    if (tab.dataset.tab === "papers") loadPapers();
     if (tab.dataset.tab === "settings") loadSettings();
   });
 });
@@ -205,6 +212,84 @@ async function removeBook(id, name) {
   try {
     await api("/api/admin/books/" + id, { method: "DELETE" });
     loadLibrary();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+paperDropzone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  paperDropzone.classList.add("dragging");
+});
+
+paperDropzone.addEventListener("dragleave", () => paperDropzone.classList.remove("dragging"));
+
+paperDropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  paperDropzone.classList.remove("dragging");
+  if (e.dataTransfer.files.length) uploadPaper(e.dataTransfer.files[0]);
+});
+
+pickPaper.addEventListener("click", () => paperInput.click());
+
+paperInput.addEventListener("change", () => {
+  if (paperInput.files.length) uploadPaper(paperInput.files[0]);
+});
+
+async function uploadPaper(file) {
+  paperUploadError.classList.add("hidden");
+  paperDropzone.classList.add("hidden");
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    await api("/api/admin/papers", { method: "POST", body: form });
+    paperDropzone.classList.remove("hidden");
+    paperInput.value = "";
+    loadPapers();
+  } catch (e) {
+    paperDropzone.classList.remove("hidden");
+    showError(paperUploadError, e.message);
+  }
+}
+
+async function loadPapers() {
+  try {
+    const papers = await api("/api/admin/papers");
+    if (!papers.length) {
+      papersList.innerHTML = '<p class="hint">No papers yet. Upload past exam papers so Exam Focus can predict topics.</p>';
+      return;
+    }
+    papersList.innerHTML = "";
+    for (const paper of papers) {
+      const item = document.createElement("div");
+      item.className = "book-row";
+      const statusClass = paper.status === "ready" ? "ok" : paper.status === "error" ? "bad" : "";
+      let matches = 0;
+      try {
+        matches = Object.keys(JSON.parse(paper.matches || "{}")).length;
+      } catch (e) {
+        /* ignore */
+      }
+      item.innerHTML =
+        `<div class="book-info">` +
+        `<div class="book-name">${escapeHtml(paper.name)}</div>` +
+        `<div class="book-meta"><span class="badge ${statusClass}">${paper.status}</span>` +
+        ` &middot; ${matches} topic match(es) &middot; ${escapeHtml(paper.added_at || "")}</div>` +
+        `</div>` +
+        `<button class="danger" data-id="${paper.id}">Delete</button>`;
+      item.querySelector(".danger").addEventListener("click", () => removePaper(paper.id, paper.name));
+      papersList.appendChild(item);
+    }
+  } catch (e) {
+    papersList.innerHTML = `<p class="hint">${escapeHtml(e.message)}</p>`;
+  }
+}
+
+async function removePaper(id, name) {
+  if (!confirm('Delete paper "' + name + '"?')) return;
+  try {
+    await api("/api/admin/papers/" + id, { method: "DELETE" });
+    loadPapers();
   } catch (e) {
     alert(e.message);
   }

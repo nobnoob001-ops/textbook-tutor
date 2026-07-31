@@ -17,7 +17,7 @@ def rank_chunks(
         return []
     query = _normalize(np.asarray(query_embedding, dtype=np.float32))
     matrix = np.array(
-        [json.loads(embedding) for _, _, _, embedding in chunks], dtype=np.float32
+        [json.loads(chunk[3]) for chunk in chunks], dtype=np.float32
     )
     matrix = np.array([_normalize(row) for row in matrix], dtype=np.float32)
     scores = matrix @ query
@@ -29,10 +29,12 @@ def rank_chunks(
             break
         if float(scores[idx]) <= 0.0:
             continue
-        _, book, content, _ = chunks[int(idx)]
+        chunk_id, book, content, _, page = chunks[int(idx)]
         results.append(
             {
+                "chunk_id": chunk_id,
                 "book": book,
+                "page": page,
                 "text": content[:400],
                 "score": round(float(scores[idx]), 4),
             }

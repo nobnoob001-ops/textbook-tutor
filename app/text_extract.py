@@ -9,21 +9,23 @@ from app.config import CHUNK_OVERLAP, CHUNK_SIZE
 
 
 def extract_from_pdf(data: bytes) -> str:
+    parts = [text for _, text in extract_from_pdf_pages(data)]
+    return "\n".join(parts)
+
+
+def extract_from_pdf_pages(data: bytes) -> list[tuple[int, str]]:
     reader = PdfReader(io.BytesIO(data))
-    parts = [page.extract_text() or "" for page in reader.pages]
-    text = "\n".join(parts)
-    if len(text.strip()) < 100 and len(reader.pages) <= 200:
-        ocr_text = _ocr_pdf_pages(data)
-        if ocr_text.strip():
-            return ocr_text
-    return text
+    pages = [(i + 1, page.extract_text() or "") for i, page in enumerate(reader.pages)]
+    total_text = "\n".join(text for _, text in pages)
+    if len(total_text.strip()) < 100 and len(reader.pages) <= 200:
+        ocr_pages = _ocr_pdf_pages(data)
+        if any(t.strip() for t in ocr_pages):
+            return [(i + 1, text) for i, text in enumerate(ocr_pages)]
+    return pages
 
 
-def _ocr_pdf_pages(data: bytes, max_pages: int = 50) -> str:
-    parts = []
-    for img in convert_from_bytes(data)[:max_pages]:
-        parts.append(_ocr_image(img))
-    return "\n\n".join(parts)
+def _ocr_pdf_pages(data: bytes, max_pages: int = 50) -> list[str]:
+    return [_ocr_image(img) for img in convert_from_bytes(data)[:max_pages]]
 
 
 def _ocr_image(image) -> str:

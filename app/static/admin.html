@@ -27,6 +27,7 @@
       <nav class="tabs">
         <button class="tab active" data-tab="upload">Add Textbook</button>
         <button class="tab" data-tab="library">Library</button>
+        <button class="tab" data-tab="papers">Papers</button>
         <button class="tab" data-tab="settings">Settings</button>
       </nav>
 
@@ -51,6 +52,23 @@
         <div class="card">
           <h2>Library</h2>
           <div id="library-list">
+            <p class="hint">Loading…</p>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-papers" class="tab-panel hidden">
+        <div class="card">
+          <h2>Past question papers</h2>
+          <p class="hint">Upload past exam papers here. The app studies them to predict which textbook topics are most likely on the next exam.</p>
+          <div class="dropzone" id="paper-dropzone">
+            <p>Drag &amp; drop a question paper</p>
+            <p class="hint">or</p>
+            <button class="primary" id="pick-paper">Choose file</button>
+            <input type="file" id="paper-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff,.txt" hidden />
+          </div>
+          <div id="paper-upload-error" class="error hidden"></div>
+          <div id="papers-list">
             <p class="hint">Loading…</p>
           </div>
         </div>
