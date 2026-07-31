@@ -58,7 +58,9 @@ Some providers and how they map:
 | Provider | Chat base URL | Chat model example | Embeddings model example |
 |---|---|---|---|
 | OpenAI | `https://api.openai.com/v1` | `gpt-4o-mini` | `text-embedding-3-small` |
-| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.0-flash` | `text-embedding-004` |
+| Google Gemini | `https://generativelanguage.googleapis.com/v1beta/openai` | `gemini-2.5-flash` | `text-embedding-004` |
+
+> **Note:** Google's OpenAI-compatible URL handles chat only — it does not expose `/embeddings` (you'll get a 404). The app detects the Gemini URL and calls Google's native `batchEmbedContents` endpoint instead, so the same base URL works for both fields.
 | DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` | needs a separate embedding provider |
 | Mistral | `https://api.mistral.ai/v1` | `mistral-small-latest` | `mistral-embed` |
 

@@ -10,6 +10,9 @@ def _headers(api_key: str) -> dict:
     return headers
 
 
+_GEMINI_HOST = "generativelanguage.googleapis.com"
+
+
 def embed_texts(
     texts: list[str], base_url: str, api_key: str, model: str
 ) -> list[list[float]]:
@@ -17,6 +20,8 @@ def embed_texts(
         raise ValueError(
             "Embedding API URL is not set. Ask the admin to add it in Settings."
         )
+    if _GEMINI_HOST in base_url:
+        return _gemini_embed_texts(texts, api_key, model)
     url = base_url.rstrip("/") + "/embeddings"
     payload = {"model": model, "input": texts}
     with httpx.Client(timeout=_TIMEOUT) as client:
@@ -24,6 +29,29 @@ def embed_texts(
         response.raise_for_status()
         data = response.json()
     return [item["embedding"] for item in data["data"]]
+
+
+def _gemini_embed_texts(
+    texts: list[str], api_key: str, model: str
+) -> list[list[float]]:
+    url = (
+        f"https://{_GEMINI_HOST}/v1beta/models/{model}:batchEmbedContents"
+    )
+    payload = {
+        "requests": [
+            {
+                "model": f"models/{model}",
+                "content": {"parts": [{"text": text}]},
+            }
+            for text in texts
+        ]
+    }
+    headers = {"Content-Type": "application/json", "x-goog-api-key": api_key}
+    with httpx.Client(timeout=_TIMEOUT) as client:
+        response = client.post(url, json=payload, headers=headers)
+        response.raise_for_status()
+        data = response.json()
+    return [item["values"] for item in data["embeddings"]]
 
 
 def chat_completion(
