@@ -30,6 +30,8 @@ The AI never gets stuck: if the textbook doesn't cover a question, it still expl
 - **Quick sheet** — a one-page formula / definition cheat sheet for a topic
 - **Student accounts** — students register/login (no email needed, name + password), see their streak, quiz scores and progress; visitors can use the app without an account
 - **Classes** — textbooks are tagged with a class (e.g. "Class 10"); students pick their class and everything (search, chat, study path) uses only that class's books
+- **Subject sectors / scoped books** — every book can be restricted to specific classes *and* subject sectors (e.g. "Class 10" + "Biology"). A book with no limits is available to all classes and subjects. Students pick a class + subject, and all answers/quizzes/search come only from matching books — so a Class 10 Biology student never sees Class 9 Physics material
+- **Library manager** — a visual, filterable library (search, class/subject/status filters), color-coded book cards, and inline editing of each book's name, class scope, and subject scope without re-uploading
 - **Chat with memory** — the tutor remembers the conversation (follow-up questions work), streams answers word-by-word, reads answers aloud, and takes voice questions in the browser
 - **Answer mode** — toggle between Short and Detailed answers
 - Admin page — add/remove textbooks, manage the library, upload past question papers

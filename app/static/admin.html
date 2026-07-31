@@ -35,8 +35,13 @@
         <div class="card">
           <h2>Add a textbook</h2>
           <p class="hint">PDF, photos of pages, or text files. It becomes searchable when ready.</p>
-          <label>Class name</label>
-          <input id="book-class" placeholder="e.g. Class 10 Life Science" />
+          <label>Primary class</label>
+          <input id="book-class" placeholder="e.g. Class 10" />
+          <label>Available for classes <span class="hint-inline">(comma-separated — empty = all classes)</span></label>
+          <input id="book-classes" placeholder="e.g. Class 9, Class 10" />
+          <label>Subject sectors <span class="hint-inline">(comma-separated — empty = all subjects)</span></label>
+          <input id="book-sectors" placeholder="e.g. Biology, Life Science" />
+          <div class="scope-preview hidden" id="scope-preview"></div>
           <div class="dropzone" id="dropzone">
             <p>Drag &amp; drop your file here</p>
             <p class="hint">or</p>
@@ -53,6 +58,18 @@
       <div id="tab-library" class="tab-panel hidden">
         <div class="card">
           <h2>Library</h2>
+          <p class="hint">Books with no class or subject limits are available to every class and subject.</p>
+          <div class="lib-filters">
+            <input id="lib-search" placeholder="Search books…" />
+            <select id="lib-class-filter" title="Filter by class"><option value="">All classes</option></select>
+            <select id="lib-sector-filter" title="Filter by subject"><option value="">All subjects</option></select>
+            <select id="lib-status-filter" title="Filter by status">
+              <option value="">All statuses</option>
+              <option value="ready">Ready</option>
+              <option value="processing">Processing</option>
+              <option value="error">Failed</option>
+            </select>
+          </div>
           <div id="library-list">
             <p class="hint">Loading…</p>
           </div>
@@ -108,6 +125,23 @@
         </div>
       </div>
     </section>
+
+    <div class="modal hidden" id="edit-modal">
+      <div class="modal-card card narrow">
+        <h2 id="edit-title">Edit book</h2>
+        <label>Book name</label>
+        <input id="edit-name" placeholder="Book name" />
+        <label>Available for classes <span class="hint-inline">(comma-separated)</span></label>
+        <input id="edit-classes" placeholder="e.g. Class 9, Class 10" />
+        <label>Subject sectors <span class="hint-inline">(comma-separated)</span></label>
+        <input id="edit-sectors" placeholder="e.g. Biology, Life Science" />
+        <div class="row">
+          <button class="primary" id="edit-save">Save</button>
+          <button class="ghost" id="edit-cancel">Cancel</button>
+        </div>
+        <div class="error hidden" id="edit-error"></div>
+      </div>
+    </div>
 
     <script src="/static/admin.js"></script>
   </body>

@@ -65,6 +65,15 @@ CREATE TABLE IF NOT EXISTS study_paths (
     path TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS book_scopes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    book_id INTEGER NOT NULL,
+    kind TEXT NOT NULL,
+    value TEXT NOT NULL,
+    UNIQUE(book_id, kind, value),
+    FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
+);
 """
 
 
@@ -85,6 +94,13 @@ def _migrate(conn):
     book_columns = [row["name"] for row in conn.execute("PRAGMA table_info(books)")]
     if "class_name" not in book_columns:
         conn.execute("ALTER TABLE books ADD COLUMN class_name TEXT")
+    conn.execute(
+        """
+        INSERT OR IGNORE INTO book_scopes (book_id, kind, value)
+        SELECT id, 'class', class_name FROM books
+        WHERE class_name IS NOT NULL AND class_name != ''
+        """
+    )
 
 
 def backfill_book_classes(default: str):
@@ -137,15 +153,83 @@ def get_all_settings() -> dict[str, str]:
         conn.close()
 
 
-def add_book(name: str, file_type: str, class_name: str | None = None) -> int:
+def add_book(
+    name: str,
+    file_type: str,
+    class_name: str | None = None,
+    classes: list[str] | None = None,
+    sectors: list[str] | None = None,
+) -> int:
     conn = _connect()
     try:
         cur = conn.execute(
             "INSERT INTO books (name, file_type, class_name) VALUES (?, ?, ?)",
             (name, file_type, class_name),
         )
+        book_id = cur.lastrowid
+        _replace_scopes(conn, book_id, classes or [], sectors or [])
         conn.commit()
-        return cur.lastrowid
+        return book_id
+    finally:
+        conn.close()
+
+
+def _clean_values(values: list[str] | None) -> list[str]:
+    out = []
+    for v in values or []:
+        v = (v or "").strip()
+        if v and v not in out:
+            out.append(v)
+    return out
+
+
+def _replace_scopes(conn, book_id: int, classes: list[str], sectors: list[str]):
+    conn.execute("DELETE FROM book_scopes WHERE book_id = ?", (book_id,))
+    for kind, values in (("class", _clean_values(classes)), ("sector", _clean_values(sectors))):
+        for v in values:
+            conn.execute(
+                "INSERT OR IGNORE INTO book_scopes (book_id, kind, value) VALUES (?, ?, ?)",
+                (book_id, kind, v),
+            )
+
+
+def set_book_scopes(book_id: int, classes: list[str], sectors: list[str]):
+    conn = _connect()
+    try:
+        _replace_scopes(conn, book_id, classes, sectors)
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def update_book(
+    book_id: int,
+    name: str | None = None,
+    classes: list[str] | None = None,
+    sectors: list[str] | None = None,
+):
+    conn = _connect()
+    try:
+        if name is not None:
+            conn.execute("UPDATE books SET name = ? WHERE id = ?", (name.strip(), book_id))
+        if classes is not None or sectors is not None:
+            _replace_scopes(conn, book_id, classes or [], sectors or [])
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_book_scopes(book_id: int) -> dict:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT kind, value FROM book_scopes WHERE book_id = ? ORDER BY value", (book_id,)
+        ).fetchall()
+        scopes: dict = {"classes": [], "sectors": []}
+        for r in rows:
+            key = "classes" if r["kind"] == "class" else "sectors"
+            scopes[key].append(r["value"])
+        return scopes
     finally:
         conn.close()
 
@@ -181,7 +265,18 @@ def list_books() -> list[dict]:
     conn = _connect()
     try:
         rows = conn.execute("SELECT * FROM books ORDER BY added_at DESC").fetchall()
-        return [dict(r) for r in rows]
+        books = []
+        for r in rows:
+            book = dict(r)
+            scopes = {"classes": [], "sectors": []}
+            for s in conn.execute(
+                "SELECT kind, value FROM book_scopes WHERE book_id = ? ORDER BY value", (r["id"],)
+            ).fetchall():
+                key = "classes" if s["kind"] == "class" else "sectors"
+                scopes[key].append(s["value"])
+            book.update(scopes)
+            books.append(book)
+        return books
     finally:
         conn.close()
 
@@ -216,7 +311,7 @@ def add_chunks(
         conn.close()
 
 
-def get_all_chunks(class_name: str | None = None) -> list[tuple]:
+def get_all_chunks(class_name: str | None = None, sector: str | None = None) -> list[tuple]:
     conn = _connect()
     try:
         sql = (
@@ -226,8 +321,21 @@ def get_all_chunks(class_name: str | None = None) -> list[tuple]:
         )
         params: list[str] = []
         if class_name:
-            sql += " AND b.class_name = ?"
+            sql += (
+                " AND (NOT EXISTS (SELECT 1 FROM book_scopes s "
+                "WHERE s.book_id = b.id AND s.kind = 'class')"
+                " OR EXISTS (SELECT 1 FROM book_scopes s "
+                "WHERE s.book_id = b.id AND s.kind = 'class' AND s.value = ?))"
+            )
             params.append(class_name)
+        if sector:
+            sql += (
+                " AND (NOT EXISTS (SELECT 1 FROM book_scopes s "
+                "WHERE s.book_id = b.id AND s.kind = 'sector')"
+                " OR EXISTS (SELECT 1 FROM book_scopes s "
+                "WHERE s.book_id = b.id AND s.kind = 'sector' AND s.value = ?))"
+            )
+            params.append(sector)
         rows = conn.execute(sql, params).fetchall()
         return [
             (r["id"], r["book"], r["content"], r["embedding"], r["page"])
@@ -241,11 +349,26 @@ def get_classes() -> list[str]:
     conn = _connect()
     try:
         rows = conn.execute(
-            "SELECT DISTINCT class_name FROM books "
-            "WHERE class_name IS NOT NULL AND class_name != '' "
-            "AND status = 'ready' ORDER BY class_name"
+            "SELECT DISTINCT value AS name FROM book_scopes "
+            "WHERE kind = 'class' AND value != '' "
+            "AND book_id IN (SELECT id FROM books WHERE status = 'ready') "
+            "ORDER BY name"
         ).fetchall()
-        return [r["class_name"] for r in rows]
+        return [r["name"] for r in rows]
+    finally:
+        conn.close()
+
+
+def get_sectors() -> list[str]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT value AS name FROM book_scopes "
+            "WHERE kind = 'sector' AND value != '' "
+            "AND book_id IN (SELECT id FROM books WHERE status = 'ready') "
+            "ORDER BY name"
+        ).fetchall()
+        return [r["name"] for r in rows]
     finally:
         conn.close()
 

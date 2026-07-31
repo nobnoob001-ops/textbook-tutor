@@ -136,7 +136,11 @@ async function upload(file) {
   const form = new FormData();
   form.append("file", file);
   const cls = document.getElementById("book-class").value.trim();
+  const classes = document.getElementById("book-classes").value.trim();
+  const sectors = document.getElementById("book-sectors").value.trim();
   if (cls) form.append("class_name", cls);
+  if (classes) form.append("classes", classes);
+  if (sectors) form.append("sectors", sectors);
   try {
     const data = await api("/api/admin/books", { method: "POST", body: form });
     pollStatus(data.id, file.name);
@@ -182,32 +186,130 @@ function finishUpload() {
   loadLibrary();
 }
 
+let allBooks = [];
+
 async function loadLibrary() {
   try {
-    const books = await api("/api/admin/books");
-    if (!books.length) {
-      libraryList.innerHTML = '<p class="hint">No textbooks yet. Add one in the "Add Textbook" tab.</p>';
-      return;
-    }
-    libraryList.innerHTML = "";
-    for (const book of books) {
-      const item = document.createElement("div");
-      item.className = "book-row";
-      const statusClass = book.status === "ready" ? "ok" : book.status === "error" ? "bad" : "";
-      item.innerHTML =
-        `<div class="book-info">` +
-        `<div class="book-name">${escapeHtml(book.name)}</div>` +
-        `<div class="book-meta"><span class="badge ${statusClass}">${book.status}</span>` +
-        ` &middot; ${escapeHtml(book.class_name || "")}` +
-        ` &middot; ${book.chunk_count || 0} parts &middot; ${escapeHtml(book.added_at || "")}</div>` +
-        `</div>` +
-        `<button class="danger" data-id="${book.id}">Delete</button>`;
-      item.querySelector(".danger").addEventListener("click", () => removeBook(book.id, book.name));
-      libraryList.appendChild(item);
-    }
+    allBooks = await api("/api/admin/books");
+    populateLibFilters();
+    renderLibrary();
   } catch (e) {
     libraryList.innerHTML = `<p class="hint">${escapeHtml(e.message)}</p>`;
   }
+}
+
+function populateLibFilters() {
+  const classes = [...new Set(allBooks.flatMap((b) => b.classes || []))].sort();
+  const sectors = [...new Set(allBooks.flatMap((b) => b.sectors || []))].sort();
+  fillSelect(document.getElementById("lib-class-filter"), classes, "All classes");
+  fillSelect(document.getElementById("lib-sector-filter"), sectors, "All subjects");
+}
+
+function fillSelect(sel, values, allLabel) {
+  const current = sel.value;
+  sel.innerHTML = `<option value="">${escapeHtml(allLabel)}</option>`;
+  for (const v of values) {
+    const opt = document.createElement("option");
+    opt.value = v;
+    opt.textContent = v;
+    sel.appendChild(opt);
+  }
+  sel.value = values.includes(current) ? current : "";
+}
+
+function renderLibrary() {
+  const q = document.getElementById("lib-search").value.trim().toLowerCase();
+  const cf = document.getElementById("lib-class-filter").value;
+  const sf = document.getElementById("lib-sector-filter").value;
+  const st = document.getElementById("lib-status-filter").value;
+  const books = allBooks.filter((b) => {
+    if (st && b.status !== st) return false;
+    if (cf && !(b.classes || []).includes(cf)) return false;
+    if (sf && !(b.sectors || []).includes(sf)) return false;
+    if (q && !b.name.toLowerCase().includes(q)) return false;
+    return true;
+  });
+  if (!allBooks.length) {
+    libraryList.innerHTML = '<p class="hint">No textbooks yet. Add one in the "Add Textbook" tab.</p>';
+    return;
+  }
+  if (!books.length) {
+    libraryList.innerHTML = '<p class="hint">No books match those filters.</p>';
+    return;
+  }
+  libraryList.innerHTML = "";
+  for (const book of books) {
+    const card = bookCard(book);
+    stagger(card, libraryList.children.length);
+    libraryList.appendChild(card);
+  }
+}
+
+const CARD_GRADS = [
+  "linear-gradient(135deg,#7c6bff,#b388ff)",
+  "linear-gradient(135deg,#22d3ee,#0ea5e9)",
+  "linear-gradient(135deg,#34d399,#0d9488)",
+  "linear-gradient(135deg,#f59e0b,#f97316)",
+  "linear-gradient(135deg,#ec4899,#8b5cf6)",
+  "linear-gradient(135deg,#a3e635,#16a34a)",
+];
+
+function cardAccent(book) {
+  const seed = [...(book.sectors || []), ...(book.classes || []), book.name || "x"].join("");
+  let h = 0;
+  for (const ch of seed) h = (h * 31 + ch.charCodeAt(0)) >>> 0;
+  return CARD_GRADS[h % CARD_GRADS.length];
+}
+
+function bookIcon(book) {
+  const s = (book.sectors || []).join(" ").toLowerCase();
+  const n = (book.name || "").toLowerCase();
+  if (/bio|জীব|জীববিজ্ঞান/.test(s) || /জীববিজ্ঞান|biology/.test(n)) return "🧬";
+  if (/phys|পদার্থ/.test(s) || /পদার্থবিজ্ঞান|physics/.test(n)) return "⚡";
+  if (/chem|রসায়ন/.test(s) || /রসায়ন|chemistry/.test(n)) return "🧪";
+  if (/math|গণিত/.test(s) || /গণিত|math/.test(n)) return "📐";
+  if (/english|ইংরেজি/.test(s) || /ইংরেজি/.test(n)) return "🔤";
+  return "📖";
+}
+
+function statusLabel(book) {
+  if (book.status === "ready")
+    return `<span class="scope-pill ok"><span class="dot ok"></span> Ready · ${book.chunk_count || 0} parts</span>`;
+  if (book.status === "error")
+    return `<span class="scope-pill bad"><span class="dot bad"></span> Failed</span>`;
+  return `<span class="scope-pill spin"><span class="spinner"></span> Processing…</span>`;
+}
+
+function bookCard(book) {
+  const card = document.createElement("div");
+  card.className = "book-card";
+  const accent = cardAccent(book);
+  card.style.setProperty("--accent", accent);
+  const classes = book.classes && book.classes.length
+    ? book.classes.map((c) => `<span class="scope-pill">${escapeHtml(c)}</span>`).join(" ")
+    : `<span class="scope-pill all">All classes</span>`;
+  const sectors = book.sectors && book.sectors.length
+    ? book.sectors.map((s) => `<span class="scope-pill sector">${escapeHtml(s)}</span>`).join(" ")
+    : `<span class="scope-pill all">All subjects</span>`;
+  card.innerHTML =
+    `<div class="book-card-top">` +
+    `<div class="book-icon">${bookIcon(book)}</div>` +
+    `<div class="book-title">${escapeHtml(book.name)}</div>` +
+    `</div>` +
+    `<div class="book-scopes">${classes}${sectors}</div>` +
+    `<div class="book-status">${statusLabel(book)}</div>` +
+    `<div class="book-meta">${escapeHtml(book.added_at || "")} · ${book.file_type || "file"}</div>` +
+    `<div class="book-actions">` +
+    `<button class="ghost small" data-act="edit">Edit</button>` +
+    `<button class="danger small" data-act="del">Delete</button>` +
+    `</div>`;
+  card.querySelector('[data-act="edit"]').addEventListener("click", () => openEdit(book));
+  card.querySelector('[data-act="del"]').addEventListener("click", () => removeBook(book.id, book.name));
+  return card;
+}
+
+function stagger(el, i) {
+  el.style.setProperty("--i", i);
 }
 
 async function removeBook(id, name) {
@@ -219,6 +321,72 @@ async function removeBook(id, name) {
     alert(e.message);
   }
 }
+
+["lib-search", "lib-class-filter", "lib-sector-filter", "lib-status-filter"].forEach((id) => {
+  document.getElementById(id).addEventListener("input", renderLibrary);
+});
+
+/* ---------------- edit book ---------------- */
+
+let editingId = null;
+
+function openEdit(book) {
+  editingId = book.id;
+  document.getElementById("edit-title").textContent = "Edit book";
+  document.getElementById("edit-name").value = book.name || "";
+  document.getElementById("edit-classes").value = (book.classes || []).join(", ");
+  document.getElementById("edit-sectors").value = (book.sectors || []).join(", ");
+  document.getElementById("edit-error").classList.add("hidden");
+  document.getElementById("edit-modal").classList.remove("hidden");
+}
+
+document.getElementById("edit-cancel").addEventListener("click", () => {
+  document.getElementById("edit-modal").classList.add("hidden");
+});
+
+document.getElementById("edit-save").addEventListener("click", async () => {
+  clearError(document.getElementById("edit-error"));
+  const form = new FormData();
+  form.append("name", document.getElementById("edit-name").value.trim());
+  form.append("classes", document.getElementById("edit-classes").value);
+  form.append("sectors", document.getElementById("edit-sectors").value);
+  try {
+    await api("/api/admin/books/" + editingId, { method: "PATCH", body: form });
+    document.getElementById("edit-modal").classList.add("hidden");
+    loadLibrary();
+  } catch (e) {
+    showError(document.getElementById("edit-error"), e.message);
+  }
+});
+
+/* ---------------- upload scope preview ---------------- */
+
+function parseList(raw) {
+  return raw
+    .split(",")
+    .map((x) => x.trim())
+    .filter(Boolean);
+}
+
+function updateScopePreview() {
+  const el = document.getElementById("scope-preview");
+  const classes = parseList(document.getElementById("book-classes").value);
+  const sectors = parseList(document.getElementById("book-sectors").value);
+  if (!classes.length && !sectors.length) {
+    el.classList.add("hidden");
+    return;
+  }
+  const pills = [];
+  if (!classes.length) pills.push('<span class="scope-pill all">All classes</span>');
+  else for (const c of classes) pills.push(`<span class="scope-pill">${escapeHtml(c)}</span>`);
+  if (!sectors.length) pills.push('<span class="scope-pill all">All subjects</span>');
+  else for (const s of sectors) pills.push(`<span class="scope-pill sector">${escapeHtml(s)}</span>`);
+  el.innerHTML = pills.join(" ");
+  el.classList.remove("hidden");
+}
+
+document.getElementById("book-classes").addEventListener("input", updateScopePreview);
+document.getElementById("book-sectors").addEventListener("input", updateScopePreview);
 
 paperDropzone.addEventListener("dragover", (e) => {
   e.preventDefault();

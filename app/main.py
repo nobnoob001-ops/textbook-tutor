@@ -143,6 +143,7 @@ def health():
         "app": APP_NAME,
         "books": len(db.list_books()),
         "classes": _get_classes(),
+        "sectors": db.get_sectors(),
     }
 
 
@@ -183,6 +184,8 @@ def save_settings(
 def add_book(
     file: UploadFile = File(...),
     class_name: str = Form(default=""),
+    classes: str = Form(default=""),
+    sectors: str = Form(default=""),
     x_admin_password: str = Header(default=""),
 ):
     if not _check_admin(x_admin_password):
@@ -192,8 +195,14 @@ def add_book(
         raise HTTPException(status_code=400, detail="Empty file")
     if not class_name.strip():
         class_name = db.get_setting("class_name") or "this class"
+    classes_list = _split_list(classes) or [class_name.strip()]
+    sectors_list = _split_list(sectors)
     book_id = db.add_book(
-        file.filename or "untitled", _file_type(file.filename or ""), class_name.strip()
+        file.filename or "untitled",
+        _file_type(file.filename or ""),
+        class_name.strip(),
+        classes_list,
+        sectors_list,
     )
     settings = db.get_all_settings()
     thread = threading.Thread(
@@ -202,7 +211,17 @@ def add_book(
         daemon=True,
     )
     thread.start()
-    return {"id": book_id, "name": file.filename, "class_name": class_name.strip()}
+    return {
+        "id": book_id,
+        "name": file.filename,
+        "class_name": class_name.strip(),
+        "classes": classes_list,
+        "sectors": sectors_list,
+    }
+
+
+def _split_list(raw: str) -> list[str]:
+    return [x.strip() for x in raw.split(",") if x.strip()]
 
 
 @app.get("/api/admin/books")
@@ -210,6 +229,28 @@ def list_books(x_admin_password: str = Header(default="")):
     if not _check_admin(x_admin_password):
         raise HTTPException(status_code=401, detail="Not authorized")
     return db.list_books()
+
+
+@app.patch("/api/admin/books/{book_id}")
+def update_book(
+    book_id: int,
+    name: str = Form(default=""),
+    classes: str = Form(default=""),
+    sectors: str = Form(default=""),
+    x_admin_password: str = Header(default=""),
+):
+    if not _check_admin(x_admin_password):
+        raise HTTPException(status_code=401, detail="Not authorized")
+    book = db.get_book(book_id)
+    if not book:
+        raise HTTPException(status_code=404, detail="Book not found")
+    db.update_book(
+        book_id,
+        name=name if name.strip() else book["name"],
+        classes=_split_list(classes),
+        sectors=_split_list(sectors),
+    )
+    return {"ok": True, "id": book_id}
 
 
 @app.delete("/api/admin/books/{book_id}")
@@ -220,8 +261,8 @@ def remove_book(book_id: int, x_admin_password: str = Header(default="")):
     return {"ok": True}
 
 
-def _get_chunks(class_name: str | None) -> list[tuple]:
-    chunks = db.get_all_chunks(class_name)
+def _get_chunks(class_name: str | None, sector: str | None = None) -> list[tuple]:
+    chunks = db.get_all_chunks(class_name, sector)
     if not chunks:
         raise HTTPException(
             status_code=400,
@@ -294,11 +335,13 @@ async def ask(
     question: str = Form(default=""),
     file: UploadFile | None = None,
     class_name: str = Form(default=""),
+    sector: str = Form(default=""),
     history: str = Form(default=""),
     mode: str = Form(default="short"),
 ):
     class_name = _resolve_class(class_name)
-    chunks = _get_chunks(class_name)
+    sector = sector.strip() or None
+    chunks = _get_chunks(class_name, sector)
 
     file_text = ""
     if file is not None and file.filename:
@@ -334,11 +377,13 @@ async def ask_stream(
     question: str = Form(default=""),
     file: UploadFile | None = None,
     class_name: str = Form(default=""),
+    sector: str = Form(default=""),
     history: str = Form(default=""),
     mode: str = Form(default="short"),
 ):
     class_name = _resolve_class(class_name)
-    chunks = _get_chunks(class_name)
+    sector = sector.strip() or None
+    chunks = _get_chunks(class_name, sector)
 
     file_text = ""
     if file is not None and file.filename:
@@ -450,10 +495,12 @@ async def answer_sheet(
     question: str = Form(default=""),
     file: UploadFile | None = None,
     class_name: str = Form(default=""),
+    sector: str = Form(default=""),
     mode: str = Form(default="short"),
 ):
     class_name = _resolve_class(class_name)
-    chunks = _get_chunks(class_name)
+    sector = sector.strip() or None
+    chunks = _get_chunks(class_name, sector)
     file_text = ""
     if file is not None and file.filename:
         file_text = _extract_text(file.filename, await file.read())
@@ -568,8 +615,9 @@ def remove_paper(paper_id: int, x_admin_password: str = Header(default="")):
 
 
 @app.get("/api/exam-focus")
-async def exam_focus(class_name: str = ""):
+async def exam_focus(class_name: str = "", sector: str = ""):
     class_name = _resolve_class(class_name)
+    sector = sector.strip() or None
     paper_matches = db.get_all_paper_matches()
     if not paper_matches:
         raise HTTPException(
@@ -585,7 +633,7 @@ async def exam_focus(class_name: str = ""):
         for cid, count in matches.items():
             chunk_map[int(cid)] = chunk_map.get(int(cid), 0) + int(count)
 
-    all_chunks = db.get_all_chunks(class_name)
+    all_chunks = db.get_all_chunks(class_name, sector)
     by_id = {c[0]: c for c in all_chunks}
     topics = []
     for cid, count in sorted(chunk_map.items(), key=lambda x: -x[1])[:10]:
@@ -615,12 +663,14 @@ async def exam_focus(class_name: str = ""):
 async def revision_notes(
     topic: str = Form(default=""),
     class_name: str = Form(default=""),
+    sector: str = Form(default=""),
 ):
     topic = topic.strip()
     if not topic:
         raise HTTPException(status_code=400, detail="Enter a topic or chapter name.")
     class_name = _resolve_class(class_name)
-    chunks = _get_chunks(class_name)
+    sector = sector.strip() or None
+    chunks = _get_chunks(class_name, sector)
     settings = db.get_all_settings()
     try:
         query_embedding = _embed_query(topic, settings)
@@ -651,12 +701,14 @@ async def revision_notes(
 async def flashcards(
     topic: str = Form(default=""),
     class_name: str = Form(default=""),
+    sector: str = Form(default=""),
 ):
     topic = topic.strip()
     if not topic:
         raise HTTPException(status_code=400, detail="Enter a topic or chapter name.")
     class_name = _resolve_class(class_name)
-    chunks = _get_chunks(class_name)
+    sector = sector.strip() or None
+    chunks = _get_chunks(class_name, sector)
     settings = db.get_all_settings()
     try:
         query_embedding = await asyncio.to_thread(_embed_query, topic, settings)
@@ -740,9 +792,9 @@ def profile(student_id: int = 0):
 
 
 def _retrieve_context(
-    query: str, settings: dict, class_name: str, top_k: int = 12
+    query: str, settings: dict, class_name: str, sector: str | None = None, top_k: int = 12
 ) -> list[dict]:
-    chunks = _get_chunks(class_name)
+    chunks = _get_chunks(class_name, sector)
     try:
         query_embedding = _embed_query(query, settings)
     except Exception as e:
@@ -755,14 +807,16 @@ async def quiz(
     topic: str = Form(default=""),
     count: int = Form(default=5),
     class_name: str = Form(default=""),
+    sector: str = Form(default=""),
 ):
     topic = topic.strip()
     if not topic:
         raise HTTPException(status_code=400, detail="Enter a topic or chapter name.")
     count = min(max(int(count), 3), 15)
     class_name = _resolve_class(class_name)
+    sector = sector.strip() or None
     settings = db.get_all_settings()
-    sources = await asyncio.to_thread(_retrieve_context, topic, settings, class_name, 15)
+    sources = await asyncio.to_thread(_retrieve_context, topic, settings, class_name, sector, 15)
     context = "\n\n".join(_format_source(s) for s in sources)
     system_prompt = (
         f"You are an expert teacher for {settings['class_name']}."
@@ -829,14 +883,16 @@ async def question_bank(
     topic: str = Form(default=""),
     count: int = Form(default=10),
     class_name: str = Form(default=""),
+    sector: str = Form(default=""),
 ):
     topic = topic.strip()
     if not topic:
         raise HTTPException(status_code=400, detail="Enter a topic or chapter name.")
     count = min(max(int(count), 5), 30)
     class_name = _resolve_class(class_name)
+    sector = sector.strip() or None
     settings = db.get_all_settings()
-    sources = await asyncio.to_thread(_retrieve_context, topic, settings, class_name, 15)
+    sources = await asyncio.to_thread(_retrieve_context, topic, settings, class_name, sector, 15)
     context = "\n\n".join(_format_source(s) for s in sources)
     system_prompt = (
         f"You are an expert teacher for {settings['class_name']}."
@@ -868,18 +924,20 @@ async def question_bank(
 
 
 @app.get("/api/study-path")
-async def study_path(class_name: str = ""):
+async def study_path(class_name: str = "", sector: str = ""):
     class_name = _resolve_class(class_name)
+    sector = sector.strip() or None
     if not class_name:
         raise HTTPException(
             status_code=400,
             detail="No textbook has been added yet. Ask your admin to add the class textbook first.",
         )
-    cached = db.get_study_path(class_name)
+    cache_key = f"{class_name}|{sector or ''}"
+    cached = db.get_study_path(cache_key)
     if cached:
-        return {"topic": class_name, "steps": cached["path"], "cached": True}
+        return {"topic": class_name, "steps": cached["path"], "cached": True, "sector": sector}
 
-    chunks = _get_chunks(class_name)
+    chunks = _get_chunks(class_name, sector)
     settings = db.get_all_settings()
     step_size = max(1, len(chunks) // 14)
     sampled = [c[2][:600] for c in chunks[::step_size][:14]]
@@ -905,23 +963,26 @@ async def study_path(class_name: str = ""):
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Could not build study path: {e}")
     steps = _parse_json_array(raw) or []
-    db.set_study_path(class_name, steps)
-    return {"topic": class_name, "steps": steps, "cached": False}
+    db.set_study_path(cache_key, steps)
+    return {"topic": class_name, "steps": steps, "cached": False, "sector": sector}
 
 
 @app.post("/api/quick-sheet")
 async def quick_sheet(
     topic: str = Form(default=""),
     class_name: str = Form(default=""),
+    sector: str = Form(default=""),
 ):
     topic = topic.strip()
     class_name = _resolve_class(class_name)
+    sector = sector.strip() or None
     settings = db.get_all_settings()
     sources = await asyncio.to_thread(
         _retrieve_context,
         topic or "all key formulas and definitions",
         settings,
         class_name,
+        sector,
         12,
     )
     context = "\n\n".join(_format_source(s) for s in sources)

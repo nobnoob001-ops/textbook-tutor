@@ -1,5 +1,6 @@
 const appNameEl = document.getElementById("app-name");
 const classSelect = document.getElementById("class-select");
+const sectorSelect = document.getElementById("sector-select");
 const studentBadge = document.getElementById("student-badge");
 const studentNameEl = document.getElementById("student-name");
 const logoutBtn = document.getElementById("logout");
@@ -27,10 +28,12 @@ const loginError = document.getElementById("login-error");
 
 const STUDENT_KEY = "tt_student";
 const CLASS_KEY = "tt_class";
+const SECTOR_KEY = "tt_sector";
 const MODE_KEY = "tt_mode";
 
 let attachedFile = null;
 let currentClass = localStorage.getItem(CLASS_KEY) || "";
+let currentSector = localStorage.getItem(SECTOR_KEY) || "";
 let mode = localStorage.getItem(MODE_KEY) || "short";
 
 function getStudent() {
@@ -76,9 +79,14 @@ function escapeHtml(str) {
   return div.innerHTML;
 }
 
+function stagger(el, i, mult) {
+  el.style.setProperty("--i", i * (mult || 1));
+}
+
 function baseForm() {
   const form = new FormData();
   if (currentClass) form.append("class_name", currentClass);
+  if (currentSector) form.append("sector", currentSector);
   return form;
 }
 
@@ -150,6 +158,17 @@ async function loadClasses() {
       currentClass = classSelect.value || classes[0];
       localStorage.setItem(CLASS_KEY, currentClass);
     }
+    const sectors = data.sectors || [];
+    sectorSelect.innerHTML = '<option value="">All subjects</option>';
+    for (const s of sectors) {
+      const opt = document.createElement("option");
+      opt.value = s;
+      opt.textContent = s;
+      sectorSelect.appendChild(opt);
+    }
+    sectorSelect.value = sectors.includes(currentSector) ? currentSector : "";
+    if (sectors.length) sectorSelect.classList.remove("hidden");
+    else sectorSelect.classList.add("hidden");
   } catch (e) {
     /* ignore */
   }
@@ -159,6 +178,12 @@ async function loadClasses() {
 classSelect.addEventListener("change", () => {
   currentClass = classSelect.value;
   localStorage.setItem(CLASS_KEY, currentClass);
+  onClassChange();
+});
+
+sectorSelect.addEventListener("change", () => {
+  currentSector = sectorSelect.value;
+  localStorage.setItem(SECTOR_KEY, currentSector);
   onClassChange();
 });
 
@@ -456,6 +481,7 @@ genSheet.addEventListener("click", async () => {
     for (const item of data.items || []) {
       const block = document.createElement("div");
       block.className = "sheet-item";
+      stagger(block, sheetOutput.children.length);
       const q = document.createElement("div");
       q.className = "sheet-question";
       q.textContent = `${item.number}. ${item.question || ""}`;
@@ -492,6 +518,7 @@ loadFocus.addEventListener("click", async () => {
   try {
     const qs = new URLSearchParams();
     if (currentClass) qs.set("class_name", currentClass);
+    if (currentSector) qs.set("sector", currentSector);
     const res = await fetch("/api/exam-focus?" + qs.toString());
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Something went wrong.");
@@ -505,6 +532,7 @@ loadFocus.addEventListener("click", async () => {
     for (const t of data.topics || []) {
       const row = document.createElement("div");
       row.className = "topic-row";
+      stagger(row, focusOutput.children.length);
       const meta = document.createElement("div");
       meta.className = "topic-meta";
       const page = t.page ? ` · page ${t.page}` : "";
@@ -542,12 +570,14 @@ loadPath.addEventListener("click", async () => {
   try {
     const qs = new URLSearchParams();
     if (currentClass) qs.set("class_name", currentClass);
+    if (currentSector) qs.set("sector", currentSector);
     const res = await fetch("/api/study-path?" + qs.toString());
     const data = await res.json();
     if (!res.ok) throw new Error(data.detail || "Something went wrong.");
     for (const s of data.steps || []) {
       const step = document.createElement("div");
       step.className = "path-step";
+      stagger(step, pathOutput.children.length, 2);
       const num = document.createElement("div");
       num.className = "path-num";
       num.textContent = s.step || "";
@@ -661,6 +691,7 @@ genFlashcards.addEventListener("click", async () => {
     for (const card of data.cards || []) {
       const c = document.createElement("div");
       c.className = "flashcard";
+      stagger(c, grid.children.length);
       const inner = document.createElement("div");
       inner.className = "flashcard-inner";
       const front = document.createElement("div");
@@ -724,6 +755,7 @@ genQuiz.addEventListener("click", async () => {
       const q = questions[i];
       const block = document.createElement("div");
       block.className = "quiz-q";
+      stagger(block, i);
       const text = document.createElement("div");
       text.className = "quiz-qtext";
       text.textContent = `${i + 1}. ${q.question || ""}`;
@@ -803,7 +835,10 @@ async function submitQuiz(questions) {
   head.className = "quiz-score";
   head.textContent = `You scored ${score} / ${questions.length}`;
   result.appendChild(head);
-  if (score === questions.length) head.textContent += " — perfect! 🎉";
+  if (score === questions.length) {
+    head.textContent += " — perfect! 🎉";
+    confetti();
+  }
   const pct = Math.round((score / questions.length) * 100);
   const bar = document.createElement("div");
   bar.className = "progress-bar";
@@ -822,6 +857,7 @@ async function submitQuiz(questions) {
   results.forEach((r, i) => {
     const block = document.createElement("div");
     block.className = "quiz-review " + (r.ok ? "right" : "wrong");
+    stagger(block, i);
     const q = document.createElement("div");
     q.className = "quiz-qtext";
     q.textContent = `${i + 1}. ${r.question || ""}`;
@@ -890,6 +926,7 @@ genQb.addEventListener("click", async () => {
       const q = questions[i];
       const block = document.createElement("div");
       block.className = "qb-item";
+      stagger(block, i);
       const head = document.createElement("div");
       head.className = "qb-q";
       head.textContent = `${i + 1}. [${q.type || "short"}] ${q.question || ""}`;
@@ -963,6 +1000,27 @@ genQs.addEventListener("click", async () => {
     genQs.textContent = "Make quick sheet";
   }
 });
+
+/* ---------------- confetti ---------------- */
+
+const CONFETTI_COLORS = ["#7c6bff", "#b388ff", "#22d3ee", "#34d399", "#f87171", "#fbbf24"];
+
+function confetti() {
+  const layer = document.createElement("div");
+  layer.className = "confetti-layer";
+  document.body.appendChild(layer);
+  for (let i = 0; i < 110; i++) {
+    const p = document.createElement("span");
+    p.className = "confetti-piece";
+    p.style.left = Math.random() * 100 + "vw";
+    p.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
+    p.style.setProperty("--dur", (2.2 + Math.random() * 1.8).toFixed(2) + "s");
+    p.style.setProperty("--delay", (Math.random() * 0.6).toFixed(2) + "s");
+    p.style.setProperty("--rot", (Math.round(Math.random() * 720) + 360) + "deg");
+    layer.appendChild(p);
+  }
+  setTimeout(() => layer.remove(), 4200);
+}
 
 /* ---------------- init ---------------- */
 
