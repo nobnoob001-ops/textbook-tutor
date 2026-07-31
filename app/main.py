@@ -206,13 +206,15 @@ async def ask(
     sources = search.rank_chunks(chunks, query_embedding)
 
     system_prompt = (
-        f"You are {APP_NAME}, a friendly and expert teacher for {settings['class_name']}."
-        " Always answer clearly, step by step, and give real-life examples."
+        f"You are an expert teacher for {settings['class_name']}."
+        " Answer every question directly and completely. Never greet,"
+        " introduce yourself, or add opening remarks."
         " Use the class textbook material below when it helps."
         " If the material does not cover the question, still answer helpfully"
         " from your own knowledge at the level of the class."
         " Never say you cannot help or that something is not in the book."
-        " Keep answers in simple, easy-to-understand language."
+        " Give clear, step-by-step explanations with real-life examples."
+        " Always answer in the same language the student used in their question."
     )
 
     context = "\n\n".join(
