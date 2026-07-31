@@ -18,6 +18,7 @@ CREATE TABLE IF NOT EXISTS books (
     status TEXT NOT NULL DEFAULT 'processing',
     error TEXT,
     chunk_count INTEGER DEFAULT 0,
+    class_name TEXT,
     added_at TEXT DEFAULT (datetime('now'))
 );
 
@@ -39,6 +40,31 @@ CREATE TABLE IF NOT EXISTS papers (
     matches TEXT,
     added_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE TABLE IF NOT EXISTS students (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    pin TEXT NOT NULL,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS quiz_attempts (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER NOT NULL,
+    class_name TEXT,
+    topic TEXT,
+    score INTEGER,
+    total INTEGER,
+    created_at TEXT DEFAULT (datetime('now')),
+    FOREIGN KEY (student_id) REFERENCES students (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS study_paths (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    class_name TEXT NOT NULL,
+    path TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -56,6 +82,21 @@ def _migrate(conn):
     columns = [row["name"] for row in conn.execute("PRAGMA table_info(chunks)")]
     if "page" not in columns:
         conn.execute("ALTER TABLE chunks ADD COLUMN page TEXT")
+    book_columns = [row["name"] for row in conn.execute("PRAGMA table_info(books)")]
+    if "class_name" not in book_columns:
+        conn.execute("ALTER TABLE books ADD COLUMN class_name TEXT")
+
+
+def backfill_book_classes(default: str):
+    conn = _connect()
+    try:
+        conn.execute(
+            "UPDATE books SET class_name = ? WHERE class_name IS NULL OR class_name = ''",
+            (default,),
+        )
+        conn.commit()
+    finally:
+        conn.close()
 
 
 def _connect():
@@ -96,11 +137,12 @@ def get_all_settings() -> dict[str, str]:
         conn.close()
 
 
-def add_book(name: str, file_type: str) -> int:
+def add_book(name: str, file_type: str, class_name: str | None = None) -> int:
     conn = _connect()
     try:
         cur = conn.execute(
-            "INSERT INTO books (name, file_type) VALUES (?, ?)", (name, file_type)
+            "INSERT INTO books (name, file_type, class_name) VALUES (?, ?, ?)",
+            (name, file_type, class_name),
         )
         conn.commit()
         return cur.lastrowid
@@ -174,18 +216,36 @@ def add_chunks(
         conn.close()
 
 
-def get_all_chunks() -> list[tuple]:
+def get_all_chunks(class_name: str | None = None) -> list[tuple]:
     conn = _connect()
     try:
-        rows = conn.execute(
+        sql = (
             "SELECT c.id, b.name AS book, c.content, c.embedding, c.page "
             "FROM chunks c JOIN books b ON b.id = c.book_id "
             "WHERE b.status = 'ready'"
-        ).fetchall()
+        )
+        params: list[str] = []
+        if class_name:
+            sql += " AND b.class_name = ?"
+            params.append(class_name)
+        rows = conn.execute(sql, params).fetchall()
         return [
             (r["id"], r["book"], r["content"], r["embedding"], r["page"])
             for r in rows
         ]
+    finally:
+        conn.close()
+
+
+def get_classes() -> list[str]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT DISTINCT class_name FROM books "
+            "WHERE class_name IS NOT NULL AND class_name != '' "
+            "AND status = 'ready' ORDER BY class_name"
+        ).fetchall()
+        return [r["class_name"] for r in rows]
     finally:
         conn.close()
 
@@ -249,5 +309,102 @@ def count_chunks(book_id: int) -> int:
             "SELECT COUNT(*) AS n FROM chunks WHERE book_id = ?", (book_id,)
         ).fetchone()
         return int(row["n"])
+    finally:
+        conn.close()
+
+
+def register_student(name: str, pin: str) -> dict:
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "INSERT INTO students (name, pin) VALUES (?, ?)", (name, pin)
+        )
+        conn.commit()
+        return {"id": cur.lastrowid, "name": name}
+    finally:
+        conn.close()
+
+
+def login_student(name: str, pin: str) -> dict | None:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT id, name FROM students WHERE name = ? AND pin = ?",
+            (name, pin),
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def get_student(student_id: int) -> dict | None:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT id, name FROM students WHERE id = ?", (student_id,)
+        ).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def add_quiz_attempt(
+    student_id: int,
+    class_name: str | None,
+    topic: str,
+    score: int,
+    total: int,
+):
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO quiz_attempts (student_id, class_name, topic, score, total) "
+            "VALUES (?, ?, ?, ?, ?)",
+            (student_id, class_name, topic, score, total),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_quiz_progress(student_id: int) -> list[dict]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT topic, class_name, score, total, created_at "
+            "FROM quiz_attempts WHERE student_id = ? "
+            "ORDER BY created_at DESC LIMIT 100",
+            (student_id,),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_study_path(class_name: str) -> dict | None:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT path, created_at FROM study_paths WHERE class_name = ? ORDER BY id DESC LIMIT 1",
+            (class_name,),
+        ).fetchone()
+        if not row:
+            return None
+        try:
+            return {"path": json.loads(row["path"]), "created_at": row["created_at"]}
+        except Exception:
+            return None
+    finally:
+        conn.close()
+
+
+def set_study_path(class_name: str, path: list):
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO study_paths (class_name, path) VALUES (?, ?)",
+            (class_name, json.dumps(path)),
+        )
+        conn.commit()
     finally:
         conn.close()

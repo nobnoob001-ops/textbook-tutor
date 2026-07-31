@@ -135,6 +135,8 @@ async function upload(file) {
   progressLabel.textContent = "Reading your file…";
   const form = new FormData();
   form.append("file", file);
+  const cls = document.getElementById("book-class").value.trim();
+  if (cls) form.append("class_name", cls);
   try {
     const data = await api("/api/admin/books", { method: "POST", body: form });
     pollStatus(data.id, file.name);
@@ -196,6 +198,7 @@ async function loadLibrary() {
         `<div class="book-info">` +
         `<div class="book-name">${escapeHtml(book.name)}</div>` +
         `<div class="book-meta"><span class="badge ${statusClass}">${book.status}</span>` +
+        ` &middot; ${escapeHtml(book.class_name || "")}` +
         ` &middot; ${book.chunk_count || 0} parts &middot; ${escapeHtml(book.added_at || "")}</div>` +
         `</div>` +
         `<button class="danger" data-id="${book.id}">Delete</button>`;

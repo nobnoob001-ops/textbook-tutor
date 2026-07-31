@@ -24,6 +24,14 @@ The AI never gets stuck: if the textbook doesn't cover a question, it still expl
 - **Exam focus** — the app studies past papers you upload and predicts which textbook topics are most likely on the next exam
 - **Revision notes** — type a topic/chapter, get quick 5-minute notes from the textbook
 - **Flashcards** — type a topic, get study cards (tap to flip) made from the textbook
+- **Practice quizzes** — type a topic, get a multiple-choice quiz (4 questions), answer it, and get instant grading with explanations
+- **Question bank** — type a topic, get a set of practice questions you can download as a text file
+- **Study path** — a personalized learning roadmap for the class: what to study, in what order (reuse topics in a chapter until done)
+- **Quick sheet** — a one-page formula / definition cheat sheet for a topic
+- **Student accounts** — students register/login (no email needed, name + password), see their streak, quiz scores and progress; visitors can use the app without an account
+- **Classes** — textbooks are tagged with a class (e.g. "Class 10"); students pick their class and everything (search, chat, study path) uses only that class's books
+- **Chat with memory** — the tutor remembers the conversation (follow-up questions work), streams answers word-by-word, reads answers aloud, and takes voice questions in the browser
+- **Answer mode** — toggle between Short and Detailed answers
 - Admin page — add/remove textbooks, manage the library, upload past question papers
 - Settings — plug in any OpenAI-compatible API (OpenAI, Gemini, DeepSeek, Groq, Mistral, OpenRouter, ...)
 - RAG search — answers are grounded in the class textbook, with page citations
@@ -35,6 +43,7 @@ The AI never gets stuck: if the textbook doesn't cover a question, it still expl
 - `tesseract-ocr` and `poppler-utils` installed on the system:
   - Ubuntu/Debian: `sudo apt install tesseract-ocr poppler-utils`
 - An OpenAI-compatible API key (chat + embeddings)
+- A budget-friendly AI provider — see the quota warning below
 
 ## Run it
 
@@ -68,6 +77,7 @@ Some providers and how they map:
 > - Google's OpenAI-compatible URL handles chat only — it does not expose `/embeddings` (you'll get a 404). The app detects the Gemini URL and calls Google's native `batchEmbedContents` endpoint instead, so the same base URL works for both fields.
 > - Use `gemini-embedding-001` for embeddings. The old `text-embedding-004` is deprecated and returns 404.
 > - Older chat models like `gemini-2.5-flash` return 404 for **new** API keys ("no longer available to new users"). Use the current free flash model, e.g. `gemini-3.6-flash`.
+> - ⚠️ **Gemini free tier is extremely limited** — this project's key hit "generate_content_free_tier_requests, limit: 20 per day per project per model" after one day of testing. The app retries 429s with backoff and degrades to a clean error message, but 20 requests/day is not enough for a real class. For production, use a paid Gemini tier or another provider.
 | DeepSeek | `https://api.deepseek.com/v1` | `deepseek-chat` | needs a separate embedding provider |
 | Mistral | `https://api.mistral.ai/v1` | `mistral-small-latest` | `mistral-embed` |
 
@@ -94,4 +104,4 @@ run.py            entry point
 
 ## Scaling later
 
-The design is RAG-first and provider-agnostic: swap a bigger model, move to a cloud server, or add accounts — without rewriting.
+The design is RAG-first and provider-agnostic: swap a bigger model or move to a cloud server without rewriting. Student accounts, per-class books, quizzes, and a study path are already in.

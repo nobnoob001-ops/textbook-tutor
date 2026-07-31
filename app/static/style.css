@@ -384,3 +384,281 @@ button.primary:disabled {
   color: var(--primary-dark);
   font-weight: 600;
 }
+
+.header-right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+#class-select {
+  width: auto;
+  margin-bottom: 0;
+  font-size: 13px;
+  padding: 7px 10px;
+}
+
+.student-badge {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  background: var(--bg);
+  border-radius: 999px;
+  padding: 4px 6px 4px 12px;
+  font-size: 13px;
+  font-weight: 600;
+  color: var(--primary-dark);
+}
+
+.student-badge button {
+  border: none;
+  background: none;
+  cursor: pointer;
+  color: var(--muted);
+  font-size: 12px;
+}
+
+.row {
+  display: flex;
+  gap: 10px;
+  margin: 4px 0 12px;
+}
+
+.row button {
+  flex: 1;
+}
+
+select {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 10px 12px;
+  font: inherit;
+  font-size: 14px;
+  background: var(--bg);
+  color: var(--ink);
+  margin-bottom: 12px;
+  outline: none;
+}
+
+button.ghost.small,
+button.small {
+  padding: 6px 12px;
+  font-size: 12px;
+}
+
+.modal {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 23, 42, 0.55);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+}
+
+.modal-card {
+  width: 92%;
+}
+
+.mic-btn {
+  border: 1px solid var(--border);
+  background: var(--card);
+  border-radius: 12px;
+  width: 46px;
+  height: 46px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  font-size: 18px;
+  flex-shrink: 0;
+}
+
+.mic-btn.recording {
+  background: #fee2e2;
+  border-color: var(--danger);
+  animation: blink 1s infinite;
+}
+
+.chat-tools {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  margin-top: 8px;
+  flex-wrap: wrap;
+}
+
+.seg {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: 999px;
+  overflow: hidden;
+  background: var(--bg);
+}
+
+.seg button {
+  border: none;
+  background: none;
+  padding: 6px 16px;
+  font: inherit;
+  font-size: 13px;
+  cursor: pointer;
+  color: var(--muted);
+}
+
+.seg button.active {
+  background: var(--primary);
+  color: #fff;
+}
+
+.listen {
+  margin-top: 10px;
+}
+
+.quiz-q {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 12px;
+  background: var(--card);
+}
+
+.quiz-qtext {
+  font-weight: 600;
+  margin-bottom: 10px;
+  line-height: 1.5;
+}
+
+.quiz-opt {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  font-weight: 400;
+  color: var(--ink);
+  margin: 6px 0;
+  cursor: pointer;
+  font-size: 14px;
+}
+
+.quiz-opt input {
+  width: auto;
+  margin: 0;
+}
+
+.quiz-score {
+  font-size: 18px;
+  font-weight: 700;
+  margin: 18px 0 6px;
+  text-align: center;
+}
+
+.progress-bar {
+  height: 10px;
+  background: var(--bg);
+  border-radius: 999px;
+  overflow: hidden;
+  margin-bottom: 18px;
+}
+
+.progress-fill {
+  height: 100%;
+  background: var(--accent);
+  border-radius: 999px;
+  transition: width 0.4s;
+}
+
+.quiz-review {
+  border: 1px solid var(--border);
+  border-left: 4px solid var(--border);
+  border-radius: 10px;
+  padding: 12px 14px;
+  margin-bottom: 10px;
+  background: var(--card);
+}
+
+.quiz-review.right {
+  border-left-color: var(--accent);
+}
+
+.quiz-review.wrong {
+  border-left-color: var(--danger);
+}
+
+.quiz-feedback {
+  font-size: 13px;
+  margin-top: 4px;
+}
+
+.quiz-feedback.right {
+  color: #065f46;
+}
+
+.quiz-feedback.wrong {
+  color: var(--danger);
+}
+
+.quiz-expl {
+  font-size: 13px;
+  color: var(--muted);
+  margin-top: 6px;
+}
+
+.path-step {
+  display: flex;
+  gap: 14px;
+  margin-bottom: 14px;
+}
+
+.path-num {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--primary);
+  color: #fff;
+  font-weight: 700;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 14px;
+}
+
+.path-body {
+  flex: 1;
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 12px 16px;
+  background: var(--card);
+}
+
+.path-title {
+  font-weight: 700;
+  margin-bottom: 4px;
+}
+
+.path-what {
+  color: var(--muted);
+  font-size: 13px;
+  margin-bottom: 8px;
+}
+
+.qb-item {
+  border: 1px solid var(--border);
+  border-radius: 12px;
+  padding: 14px 16px;
+  margin-bottom: 10px;
+  background: var(--card);
+}
+
+.qb-q {
+  font-weight: 600;
+  margin-bottom: 6px;
+  line-height: 1.5;
+}
+
+.qb-a {
+  color: var(--muted);
+  line-height: 1.6;
+  white-space: pre-wrap;
+}

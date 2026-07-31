@@ -10,31 +10,49 @@
   <body>
     <header>
       <div class="brand">📚 <span id="app-name">Textbook Tutor</span></div>
-      <div class="class-name" id="class-name">Class</div>
+      <div class="header-right">
+        <select id="class-select" title="Choose class" class="hidden"></select>
+        <div class="student-badge hidden" id="student-badge">
+          <span id="student-name"></span>
+          <button id="logout" title="Log out">✕</button>
+        </div>
+      </div>
     </header>
 
     <nav class="tabs" id="student-tabs">
       <button class="tab active" data-tab="ask">Ask</button>
+      <button class="tab" data-tab="quiz">Quiz</button>
       <button class="tab" data-tab="answer-sheet">Answer Sheet</button>
       <button class="tab" data-tab="exam-focus">Exam Focus</button>
-      <button class="tab" data-tab="revision">Revision Notes</button>
+      <button class="tab" data-tab="study-path">Study Path</button>
+      <button class="tab" data-tab="revision">Revision</button>
       <button class="tab" data-tab="flashcards">Flashcards</button>
+      <button class="tab" data-tab="question-bank">Question Bank</button>
+      <button class="tab" data-tab="quick-sheet">Quick Sheet</button>
     </nav>
 
     <div id="tab-ask" class="student-panel">
       <main id="chat">
         <div class="welcome" id="welcome">
           <h2>Ask your class anything</h2>
-          <p>Your AI teacher answers from your class textbook, step by step.</p>
+          <p>Your AI teacher answers from your class textbook. Follow-up questions work — it remembers the conversation.</p>
         </div>
       </main>
 
       <footer>
         <div class="input-row">
+          <button class="attach-btn" id="mic" title="Speak your question">🎤</button>
           <textarea id="question" rows="2" placeholder="Type your question, or attach a photo/PDF of a question paper..."></textarea>
           <label class="attach-btn" for="attach" title="Attach a photo or PDF">📎</label>
           <input type="file" id="attach" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff" hidden />
           <button class="primary" id="send">Ask</button>
+        </div>
+        <div class="chat-tools">
+          <div class="seg" id="mode-toggle" title="Answer length">
+            <button data-mode="short" class="active">Short</button>
+            <button data-mode="detailed">Detailed</button>
+          </div>
+          <button class="ghost small" id="clear-chat">Clear chat</button>
         </div>
         <div class="file-chip hidden" id="file-chip">
           <span id="file-name"></span>
@@ -43,6 +61,24 @@
         <div class="error hidden" id="error"></div>
       </footer>
     </div>
+
+    <section id="tab-quiz" class="student-panel hidden">
+      <div class="card">
+        <h2>Practice quiz</h2>
+        <p class="hint">Pick a topic and get a multiple-choice quiz made from the textbook. Instant grading, and scores are saved to your progress.</p>
+        <div class="input-row">
+          <input id="quiz-topic" placeholder="e.g. control and coordination" />
+          <select id="quiz-count">
+            <option value="5">5 questions</option>
+            <option value="10">10 questions</option>
+            <option value="15">15 questions</option>
+          </select>
+          <button class="primary" id="gen-quiz">Start quiz</button>
+        </div>
+        <div class="error hidden" id="quiz-error"></div>
+        <div id="quiz-output"></div>
+      </div>
+    </section>
 
     <section id="tab-answer-sheet" class="student-panel hidden">
       <div class="card">
@@ -73,6 +109,16 @@
       </div>
     </section>
 
+    <section id="tab-study-path" class="student-panel hidden">
+      <div class="card">
+        <h2>Study path map</h2>
+        <p class="hint">A step-by-step map of what to study and in what order, built from your textbook.</p>
+        <button class="primary" id="load-path">Show my study path</button>
+        <div class="error hidden" id="path-error"></div>
+        <div id="path-output"></div>
+      </div>
+    </section>
+
     <section id="tab-revision" class="student-panel hidden">
       <div class="card">
         <h2>Revision notes</h2>
@@ -98,6 +144,53 @@
         <div id="flashcard-output"></div>
       </div>
     </section>
+
+    <section id="tab-question-bank" class="student-panel hidden">
+      <div class="card">
+        <h2>Question bank</h2>
+        <p class="hint">Generate practice questions with model answers for any topic. Download them to practise offline.</p>
+        <div class="input-row">
+          <input id="qb-topic" placeholder="e.g. control and coordination" />
+          <select id="qb-count">
+            <option value="10">10 questions</option>
+            <option value="20">20 questions</option>
+            <option value="30">30 questions</option>
+          </select>
+          <button class="primary" id="gen-qb">Generate</button>
+        </div>
+        <button class="ghost hidden" id="qb-download">⬇ Download as text</button>
+        <div class="error hidden" id="qb-error"></div>
+        <div id="qb-output"></div>
+      </div>
+    </section>
+
+    <section id="tab-quick-sheet" class="student-panel hidden">
+      <div class="card">
+        <h2>Quick sheet</h2>
+        <p class="hint">All the key formulas and definitions in one page. Leave the topic empty for the whole class.</p>
+        <div class="input-row">
+          <input id="qs-topic" placeholder="Optional topic, e.g. photosynthesis" />
+          <button class="primary" id="gen-qs">Make quick sheet</button>
+        </div>
+        <div class="error hidden" id="qs-error"></div>
+        <div id="qs-output"></div>
+      </div>
+    </section>
+
+    <div class="modal hidden" id="login-modal">
+      <div class="modal-card card narrow">
+        <h2>Welcome!</h2>
+        <p class="hint">Log in (or create an account) to save your quiz scores and progress. You can also study as a guest.</p>
+        <input id="login-name" placeholder="Your name" />
+        <input id="login-pin" type="password" placeholder="PIN (4-8 characters)" />
+        <div class="row">
+          <button class="primary" id="login-btn">Log in</button>
+          <button class="ghost" id="register-btn">Create account</button>
+        </div>
+        <button class="ghost" id="skip-btn">Continue as guest</button>
+        <div class="error hidden" id="login-error"></div>
+      </div>
+    </div>
 
     <script src="/static/app.js"></script>
   </body>
