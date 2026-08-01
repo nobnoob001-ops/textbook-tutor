@@ -104,7 +104,8 @@ def chat_completion(
                     continue
                 response.raise_for_status()
                 data = response.json()
-            content = data["choices"][0]["message"].get("content")
+            choices = data.get("choices") or [{}]
+            content = (choices[0] or {}).get("message", {}).get("content")
             if content is None and attempt < _MAX_ATTEMPTS - 1:
                 time.sleep(float(2**attempt))
                 continue
@@ -145,7 +146,8 @@ def chat_completion_stream(
                             chunk = json.loads(data)
                         except Exception:
                             continue
-                        delta = chunk.get("choices", [{}])[0].get("delta", {})
+                        choices = chunk.get("choices") or [{}]
+                        delta = (choices[0] or {}).get("delta") or {}
                         content = delta.get("content")
                         if content:
                             yield content
