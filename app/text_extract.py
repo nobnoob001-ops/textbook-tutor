@@ -7,10 +7,16 @@ from pdf2image import convert_from_bytes
 
 from app.config import CHUNK_OVERLAP, CHUNK_SIZE
 
+_OCR_LANG = "ben+eng"
+
 
 def extract_from_pdf(data: bytes) -> str:
     parts = [text for _, text in extract_from_pdf_pages(data)]
     return "\n".join(parts)
+
+
+def _ocr_image(image) -> str:
+    return pytesseract.image_to_string(image, lang=_OCR_LANG)
 
 
 def extract_from_pdf_pages(data: bytes) -> list[tuple[int, str]]:
@@ -28,13 +34,9 @@ def _ocr_pdf_pages(data: bytes, max_pages: int = 50) -> list[str]:
     return [_ocr_image(img) for img in convert_from_bytes(data)[:max_pages]]
 
 
-def _ocr_image(image) -> str:
-    return pytesseract.image_to_string(image)
-
-
 def extract_from_image(data: bytes) -> str:
     image = Image.open(io.BytesIO(data))
-    return pytesseract.image_to_string(image)
+    return pytesseract.image_to_string(image, lang=_OCR_LANG)
 
 
 def extract_from_text(data: bytes) -> str:
