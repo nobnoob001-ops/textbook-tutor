@@ -20,7 +20,11 @@ _GEMINI_HOST = "generativelanguage.googleapis.com"
 
 
 def embed_texts(
-    texts: list[str], base_url: str, api_key: str, model: str
+    texts: list[str],
+    base_url: str,
+    api_key: str,
+    model: str,
+    mode: str = "passage",
 ) -> list[list[float]]:
     if not base_url:
         raise ValueError(
@@ -30,6 +34,8 @@ def embed_texts(
         return _gemini_embed_texts(texts, api_key, model)
     url = base_url.rstrip("/") + "/embeddings"
     payload = {"model": model, "input": texts}
+    if "integrate.api.nvidia.com" in base_url:
+        payload["input_type"] = "passage" if mode == "passage" else "query"
     for attempt in range(_MAX_ATTEMPTS):
         try:
             with httpx.Client(timeout=_TIMEOUT) as client:

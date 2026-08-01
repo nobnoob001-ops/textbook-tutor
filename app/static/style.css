@@ -1351,3 +1351,40 @@ select {
     transition-duration: 0.01ms !important;
   }
 }
+
+/* ------- my notes ------- */
+
+.dropzone {
+  border: 2px dashed var(--border-glass-strong);
+  border-radius: var(--radius);
+  padding: 34px;
+  text-align: center;
+  color: var(--muted);
+  transition: all 0.25s;
+  margin-bottom: 16px;
+}
+
+.dropzone.dragging {
+  border-color: var(--primary);
+  background: rgba(124, 107, 255, 0.12);
+  box-shadow: var(--glow-primary);
+}
+
+.note-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  flex-wrap: wrap;
+}
+
+.note-name {
+  font-weight: 700;
+  font-size: 13.5px;
+}
+
+.note-meta {
+  flex: 1;
+  font-size: 12px;
+  color: var(--muted);
+  min-width: 160px;
+}

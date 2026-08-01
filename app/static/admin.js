@@ -105,6 +105,8 @@ document.querySelectorAll(".tab").forEach((tab) => {
     document.getElementById("tab-" + tab.dataset.tab).classList.remove("hidden");
     if (tab.dataset.tab === "library") loadLibrary();
     if (tab.dataset.tab === "papers") loadPapers();
+    if (tab.dataset.tab === "insights") loadInsights();
+    if (tab.dataset.tab === "syllabus") loadSyllabi();
     if (tab.dataset.tab === "settings") loadSettings();
   });
 });
@@ -511,6 +513,308 @@ document.getElementById("save-settings").addEventListener("click", async () => {
   } catch (e) {
     showError(settingsError, e.message);
   }
+});
+
+/* ---------------- insights dashboard ---------------- */
+
+const insightsError = document.getElementById("insights-error");
+
+async function loadInsights() {
+  clearError(insightsError);
+  try {
+    const data = await api("/api/admin/insights");
+    renderSummary(data.summary || {});
+    renderPopularTopics(data.popular_topics || []);
+    renderActivity(data.activity || []);
+    renderSectorBreakdown(data.sector_breakdown || []);
+    renderLeaderboard(data.leaderboard || []);
+    renderLowPerformers(data.low_performers || []);
+  } catch (e) {
+    showError(insightsError, e.message);
+  }
+}
+
+function renderSummary(s) {
+  const cards = [
+    { label: "Students", value: s.students || 0, icon: "👥" },
+    { label: "Textbooks", value: s.books || 0, icon: "📚" },
+    { label: "Questions (7d)", value: s.questions_7d || 0, icon: "💬" },
+    { label: "Quizzes (7d)", value: s.quizzes_7d || 0, icon: "📝" },
+    { label: "Avg quiz score", value: (s.avg_score_7d || 0) + "%", icon: "🎯" },
+  ];
+  const el = document.getElementById("insight-summary");
+  el.innerHTML = "";
+  for (const c of cards) {
+    const card = document.createElement("div");
+    card.className = "insight-card";
+    card.innerHTML =
+      `<div class="insight-icon">${c.icon}</div>` +
+      `<div class="insight-value">${escapeHtml(String(c.value))}</div>` +
+      `<div class="insight-label">${escapeHtml(c.label)}</div>`;
+    el.appendChild(card);
+  }
+}
+
+function renderPopularTopics(topics) {
+  const el = document.getElementById("popular-topics");
+  if (!topics.length) {
+    el.innerHTML = '<p class="hint">No student questions yet this week. Ask your class to use the app and the struggle topics will appear here.</p>';
+    return;
+  }
+  el.innerHTML = "";
+  const max = Math.max(...topics.map((t) => t.count), 1);
+  for (const t of topics) {
+    const row = document.createElement("div");
+    row.className = "topic-bar-row";
+    const top = document.createElement("div");
+    top.className = "topic-bar-top";
+    const word = document.createElement("span");
+    word.className = "topic-word";
+    word.textContent = t.keyword;
+    const meta = document.createElement("span");
+    meta.className = "topic-meta";
+    meta.textContent = `${t.count} question(s) · ${t.students_pct}% of students`;
+    top.appendChild(word);
+    top.appendChild(meta);
+    const bar = document.createElement("div");
+    bar.className = "topic-bar";
+    const fill = document.createElement("div");
+    fill.className = "topic-bar-fill";
+    fill.style.width = Math.round((t.count / max) * 100) + "%";
+    bar.appendChild(fill);
+    row.appendChild(top);
+    row.appendChild(bar);
+    el.appendChild(row);
+  }
+}
+
+function renderActivity(activity) {
+  const el = document.getElementById("activity-chart");
+  if (!activity.length) {
+    el.innerHTML = '<p class="hint">No data yet.</p>';
+    return;
+  }
+  el.innerHTML = "";
+  const chart = document.createElement("div");
+  chart.className = "bar-chart";
+  const max = Math.max(...activity.map((a) => a.count), 1);
+  for (const a of activity) {
+    const col = document.createElement("div");
+    col.className = "bar-col";
+    const fill = document.createElement("div");
+    fill.className = "bar-fill";
+    fill.style.height = Math.max(4, Math.round((a.count / max) * 100)) + "%";
+    fill.title = `${a.date}: ${a.count} question(s)`;
+    const label = document.createElement("div");
+    label.className = "bar-label";
+    label.textContent = a.date.slice(5);
+    col.appendChild(fill);
+    col.appendChild(label);
+    chart.appendChild(col);
+  }
+  el.appendChild(chart);
+}
+
+function renderSectorBreakdown(rows) {
+  const el = document.getElementById("sector-breakdown");
+  if (!rows.length) {
+    el.innerHTML = '<p class="hint">No data yet.</p>';
+    return;
+  }
+  el.innerHTML = "";
+  for (const r of rows) {
+    const pill = document.createElement("span");
+    pill.className = "scope-pill sector";
+    pill.textContent = `${r.sector}: ${r.count}`;
+    el.appendChild(pill);
+  }
+}
+
+function renderLeaderboard(rows) {
+  const el = document.getElementById("leaderboard");
+  if (!rows.length) {
+    el.innerHTML = '<p class="hint">No activity yet.</p>';
+    return;
+  }
+  el.innerHTML = "";
+  for (let i = 0; i < rows.length; i++) {
+    const r = rows[i];
+    const item = document.createElement("div");
+    item.className = "rank-row";
+    const medal = i === 0 ? "🥇" : i === 1 ? "🥈" : i === 2 ? "🥉" : `${i + 1}.`;
+    item.innerHTML =
+      `<span class="rank-medal">${medal}</span>` +
+      `<span class="rank-name">${escapeHtml(r.name)}</span>` +
+      `<span class="rank-score">${r.questions} Qs · ${r.quizzes} quizzes</span>`;
+    el.appendChild(item);
+  }
+}
+
+function renderLowPerformers(rows) {
+  const el = document.getElementById("low-performers");
+  if (!rows.length) {
+    el.innerHTML = '<p class="hint">No one struggling — everyone averaging 40% or better. 🎉</p>';
+    return;
+  }
+  el.innerHTML = "";
+  for (const r of rows) {
+    const item = document.createElement("div");
+    item.className = "rank-row warn";
+    item.innerHTML =
+      `<span class="rank-medal">⚠️</span>` +
+      `<span class="rank-name">${escapeHtml(r.name)}</span>` +
+      `<span class="rank-score">avg ${r.avg}% · ${r.quizzes} quiz(es)</span>`;
+    el.appendChild(item);
+  }
+}
+
+/* ---------------- syllabus gap check ---------------- */
+
+const syllabusDropzone = document.getElementById("syllabus-dropzone");
+const syllabusInput = document.getElementById("syllabus-input");
+const pickSyllabus = document.getElementById("pick-syllabus");
+const syllabusUploadError = document.getElementById("syllabus-upload-error");
+const syllabiList = document.getElementById("syllabi-list");
+
+syllabusDropzone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  syllabusDropzone.classList.add("dragging");
+});
+
+syllabusDropzone.addEventListener("dragleave", () => syllabusDropzone.classList.remove("dragging"));
+
+syllabusDropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  syllabusDropzone.classList.remove("dragging");
+  if (e.dataTransfer.files.length) uploadSyllabus(e.dataTransfer.files[0]);
+});
+
+pickSyllabus.addEventListener("click", () => syllabusInput.click());
+
+syllabusInput.addEventListener("change", () => {
+  if (syllabusInput.files.length) uploadSyllabus(syllabusInput.files[0]);
+});
+
+async function uploadSyllabus(file) {
+  clearError(syllabusUploadError);
+  syllabusDropzone.classList.add("hidden");
+  const form = new FormData();
+  form.append("file", file);
+  try {
+    await api("/api/admin/syllabi", { method: "POST", body: form });
+    syllabusDropzone.classList.remove("hidden");
+    syllabusInput.value = "";
+    loadSyllabi();
+  } catch (e) {
+    syllabusDropzone.classList.remove("hidden");
+    showError(syllabusUploadError, e.message);
+  }
+}
+
+async function loadSyllabi() {
+  try {
+    const items = await api("/api/admin/syllabi");
+    if (!items.length) {
+      syllabiList.innerHTML = '<p class="hint">No syllabus uploaded yet. Upload the official syllabus to find missing topics.</p>';
+      return;
+    }
+    syllabiList.innerHTML = "";
+    for (const item of items) {
+      const row = document.createElement("div");
+      row.className = "book-row";
+      const info = document.createElement("div");
+      info.className = "book-info";
+      const name = document.createElement("div");
+      name.className = "book-name";
+      name.textContent = item.name;
+      const meta = document.createElement("div");
+      meta.className = "book-meta";
+      if (item.status === "ready") {
+        let stats = "";
+        try {
+          const report = JSON.parse(item.report || "{}");
+          const s = report.stats || {};
+          stats = ` · <span class="badge ok">${s.covered || 0} covered</span> <span class="badge">${s.partial || 0} partial</span> <span class="badge bad">${s.missing || 0} missing</span>`;
+        } catch (e) {
+          /* ignore */
+        }
+        meta.innerHTML = `<span class="badge ok">Ready</span> · ${escapeHtml(item.added_at || "")}${stats}`;
+      } else if (item.status === "error") {
+        meta.innerHTML = `<span class="badge bad">Failed</span> · ${escapeHtml(item.error || "")}`;
+      } else {
+        meta.innerHTML = `<span class="badge">Checking…</span> · ${escapeHtml(item.added_at || "")}`;
+      }
+      info.appendChild(name);
+      info.appendChild(meta);
+      const actions = document.createElement("div");
+      actions.className = "book-actions-row";
+      if (item.status === "ready") {
+        const btn = document.createElement("button");
+        btn.className = "ghost";
+        btn.textContent = "View report";
+        btn.addEventListener("click", () => openReport(item));
+        actions.appendChild(btn);
+      }
+      const del = document.createElement("button");
+      del.className = "danger";
+      del.textContent = "Delete";
+      del.addEventListener("click", () => removeSyllabus(item.id, item.name));
+      actions.appendChild(del);
+      row.appendChild(info);
+      row.appendChild(actions);
+      syllabiList.appendChild(row);
+    }
+  } catch (e) {
+    syllabiList.innerHTML = `<p class="hint">${escapeHtml(e.message)}</p>`;
+  }
+}
+
+async function removeSyllabus(id, name) {
+  if (!confirm('Delete syllabus "' + name + '"?')) return;
+  try {
+    await api("/api/admin/syllabi/" + id, { method: "DELETE" });
+    loadSyllabi();
+  } catch (e) {
+    alert(e.message);
+  }
+}
+
+function openReport(item) {
+  const body = document.getElementById("report-body");
+  body.innerHTML = "";
+  let report = null;
+  try {
+    report = JSON.parse(item.report || "null");
+  } catch (e) {
+    report = null;
+  }
+  if (!report || !report.topics || !report.topics.length) {
+    body.innerHTML = '<p class="hint">No report available.</p>';
+  } else {
+    for (const t of report.topics) {
+      const block = document.createElement("div");
+      block.className = "gap-item " + (t.status || "");
+      const status = document.createElement("span");
+      status.className = "badge " + (t.status === "missing" ? "bad" : t.status === "partial" ? "" : "ok");
+      status.textContent = t.status || "";
+      const title = document.createElement("div");
+      title.className = "gap-title";
+      title.textContent = t.topic || "";
+      const note = document.createElement("div");
+      note.className = "gap-note";
+      note.textContent = t.note || "";
+      block.appendChild(title);
+      block.appendChild(status);
+      if (t.note) block.appendChild(note);
+      body.appendChild(block);
+    }
+  }
+  document.getElementById("report-title").textContent = "Gap report: " + item.name;
+  document.getElementById("report-modal").classList.remove("hidden");
+}
+
+document.getElementById("report-close").addEventListener("click", () => {
+  document.getElementById("report-modal").classList.add("hidden");
 });
 
 function escapeHtml(str) {

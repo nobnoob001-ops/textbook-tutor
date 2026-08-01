@@ -1,6 +1,9 @@
 import asyncio
 import json
+import re
 import threading
+from collections import Counter
+from datetime import date, timedelta
 
 from fastapi import FastAPI, File, Form, Header, HTTPException, UploadFile
 from fastapi.responses import FileResponse, JSONResponse, StreamingResponse
@@ -124,6 +127,109 @@ def _process_book(book_id: int, filename: str, data: bytes, settings: dict):
 
 def _check_admin(password: str) -> bool:
     return bool(password) and password == db.get_setting("admin_password")
+
+
+_STOPWORDS = {
+    "the", "a", "an", "and", "or", "but", "is", "are", "was", "were", "be", "been",
+    "in", "on", "at", "of", "to", "for", "with", "by", "from", "as", "about",
+    "what", "why", "how", "when", "where", "who", "which", "does", "do", "did",
+    "it", "its", "this", "that", "these", "those", "not", "no", "yes", "so",
+    "can", "could", "will", "would", "should", "may", "might", "have", "has",
+    "had", "their", "there", "they", "them", "we", "you", "he", "she", "me",
+    "my", "your", "our", "us", "answer", "explain", "explaination", "give",
+    "please", "tell", "then", "than", "very", "more", "most", "make", "into",
+    "এর", "এবং", "কি", "কী", "যে", "এই", "ও", "যা", "আর", "না", "হতে", "জন্য",
+    "থেকে", "করা", "হয়", "হয়", "ছিল", "হলে", "করতে", "কিন্তু", "বা", "তাই",
+    "কেন", "কোন", "যেমন", "অথবা", "পরে", "আগে", "করে", "দিয়ে", "দিয়ে",
+    "উপর", "হলে", "একটি", "একটা", "কোনটা", "হবে", "হয়নি", "হয়েছে", "হলে",
+    "সব", "খুব", "অনেক", "কিছু", "কীভাবে", "কিভাবে", "বলো", "বলুন", "দাও",
+}
+
+
+def _tokenize_question(text: str) -> list[str]:
+    words = re.findall(r"[^\W\d_]+", text or "")
+    out = []
+    for w in words:
+        low = w.lower()
+        if len(low) < 3 or low in _STOPWORDS:
+            continue
+        out.append(low)
+    return out
+
+
+def _compute_topic_stats(queries: list[dict]) -> list[dict]:
+    freq: Counter = Counter()
+    kw_students: dict[str, set] = {}
+    for q in queries:
+        stu = q.get("student_id")
+        seen = set()
+        for kw in _tokenize_question(q.get("question", "")):
+            if kw in seen:
+                continue
+            seen.add(kw)
+            freq[kw] += 1
+            if stu:
+                kw_students.setdefault(kw, set()).add(stu)
+    total_students = db.count_students()
+    rows = []
+    for kw, count in freq.most_common(14):
+        stu = len(kw_students.get(kw, ()))
+        rows.append(
+            {
+                "keyword": kw,
+                "count": count,
+                "students": stu,
+                "students_pct": round(stu / total_students * 100) if total_students else 0,
+            }
+        )
+    return rows
+
+
+def _log_query(student_id: int | None, class_name: str | None, sector: str | None, question: str):
+    try:
+        db.log_query(student_id, class_name, sector, question)
+    except Exception:
+        pass
+
+
+def _merge_notes(sources: list[dict], query_embedding: list[float], student_id: int) -> list[dict]:
+    if not student_id:
+        return sources
+    try:
+        note_chunks = db.get_note_chunks(student_id)
+    except Exception:
+        return sources
+    if not note_chunks:
+        return sources
+    note_sources = search.rank_chunks(note_chunks, query_embedding, top_k=3)
+    for s in note_sources:
+        s["book"] = f"{s['book']} (your notes)"
+    return sources + note_sources
+
+
+def _compute_insights() -> dict:
+    days = 7
+    queries = db.get_queries(days)
+    quiz_stats = db.get_quiz_stats(days)
+    sector_counts: Counter = Counter()
+    for q in queries:
+        sector_counts[q.get("sector") or "All subjects"] += 1
+    return {
+        "summary": {
+            "students": db.count_students(),
+            "books": len(db.list_books()),
+            "questions_7d": len(queries),
+            "quizzes_7d": quiz_stats["count"],
+            "avg_score_7d": quiz_stats["avg_score"],
+        },
+        "popular_topics": _compute_topic_stats(queries),
+        "activity": db.get_activity(14),
+        "sector_breakdown": [
+            {"sector": k, "count": v} for k, v in sector_counts.most_common()
+        ],
+        "leaderboard": db.get_leaderboard(),
+        "low_performers": db.get_low_performers(),
+    }
 
 
 @app.get("/")
@@ -261,6 +367,201 @@ def remove_book(book_id: int, x_admin_password: str = Header(default="")):
     return {"ok": True}
 
 
+@app.get("/api/admin/insights")
+def insights(x_admin_password: str = Header(default="")):
+    if not _check_admin(x_admin_password):
+        raise HTTPException(status_code=401, detail="Not authorized")
+    return _compute_insights()
+
+
+@app.post("/api/admin/syllabi")
+def add_syllabus(
+    file: UploadFile = File(...),
+    x_admin_password: str = Header(default=""),
+):
+    if not _check_admin(x_admin_password):
+        raise HTTPException(status_code=401, detail="Not authorized")
+    data = file.file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    content = _extract_text(file.filename or "syllabus", data)
+    if not content.strip():
+        raise HTTPException(
+            status_code=400, detail="No text could be read from the syllabus."
+        )
+    syllabus_id = db.add_syllabus(file.filename or "syllabus", content)
+    settings = db.get_all_settings()
+    thread = threading.Thread(
+        target=_analyze_syllabus,
+        args=(syllabus_id, content, settings),
+        daemon=True,
+    )
+    thread.start()
+    return {"id": syllabus_id, "name": file.filename}
+
+
+@app.get("/api/admin/syllabi")
+def syllabi_list(x_admin_password: str = Header(default="")):
+    if not _check_admin(x_admin_password):
+        raise HTTPException(status_code=401, detail="Not authorized")
+    return db.list_syllabi()
+
+
+@app.delete("/api/admin/syllabi/{syllabus_id}")
+def remove_syllabus(syllabus_id: int, x_admin_password: str = Header(default="")):
+    if not _check_admin(x_admin_password):
+        raise HTTPException(status_code=401, detail="Not authorized")
+    db.delete_syllabus(syllabus_id)
+    return {"ok": True}
+
+
+def _analyze_syllabus(syllabus_id: int, content: str, settings: dict):
+    try:
+        chunks = db.get_all_chunks()
+        if not chunks:
+            db.set_syllabus_status(
+                syllabus_id, "error", error="No textbooks yet. Add books before checking a syllabus."
+            )
+            return
+        topics = chunk_text(content)[:24]
+        if not topics:
+            db.set_syllabus_status(syllabus_id, "error", error="No readable topics found.")
+            return
+
+        rows = []
+        for topic in topics:
+            try:
+                emb = ai.embed_texts(
+                    [topic],
+                    settings["embed_base_url"],
+                    settings["embed_api_key"],
+                    settings["embed_model"],
+                )[0]
+            except Exception:
+                continue
+            best = search.best_match(chunks, emb)
+            rows.append(
+                {
+                    "topic": topic,
+                    "score": round(best["score"], 3) if best else 0.0,
+                    "match": best["text"] if best else "",
+                }
+            )
+        if not rows:
+            db.set_syllabus_status(syllabus_id, "error", error="Could not embed the syllabus topics.")
+            return
+
+        summary_lines = []
+        for i, r in enumerate(rows):
+            summary_lines.append(f"Syllabus topic {i + 1}: {r['topic'][:180]}")
+            summary_lines.append(
+                f"Closest textbook passage (similarity {r['score']}): {r['match'][:140]}"
+            )
+        system_prompt = (
+            f"You are an expert teacher for {settings['class_name']}."
+            " You compare an official syllabus against the class textbook material."
+            " For every syllabus topic decide if the textbook covers it:"
+            " 'covered' (clearly explained), 'partial' (mentioned but not taught properly),"
+            " or 'missing' (not in the textbook at all)."
+            " Respond with ONLY a JSON array, no other text:"
+            ' [{"topic": "...", "status": "covered|partial|missing", "note": "short reason"}]'
+            " Answer in the language of the syllabus."
+        )
+        raw = _chat(
+            "\n".join(summary_lines),
+            settings,
+            system_prompt,
+        )
+        topics_report = _parse_json_array(raw) or []
+        stats = {"total": len(topics_report), "covered": 0, "partial": 0, "missing": 0}
+        for t in topics_report:
+            status = t.get("status", "")
+            if status in stats:
+                stats[status] += 1
+        db.set_syllabus_report(
+            syllabus_id,
+            json.dumps({"topics": topics_report, "stats": stats}, ensure_ascii=False),
+        )
+        db.set_syllabus_status(syllabus_id, "ready")
+    except Exception as e:
+        db.set_syllabus_status(syllabus_id, "error", error=str(e))
+
+
+@app.post("/api/notes")
+def add_note(
+    file: UploadFile = File(...),
+    student_id: int = Form(default=0),
+    x_admin_password: str = Header(default=""),
+):
+    data = file.file.read()
+    if not data:
+        raise HTTPException(status_code=400, detail="Empty file")
+    is_admin = _check_admin(x_admin_password)
+    if student_id and not db.get_student(student_id) and not is_admin:
+        raise HTTPException(status_code=401, detail="Not logged in.")
+    text = _extract_text(file.filename or "notes", data)
+    if not text.strip():
+        raise HTTPException(
+            status_code=400, detail="No text could be read from that file."
+        )
+    note_id = db.add_note(student_id if not is_admin or student_id else None, file.filename or "notes")
+    settings = db.get_all_settings()
+    thread = threading.Thread(
+        target=_process_note,
+        args=(note_id, text, settings),
+        daemon=True,
+    )
+    thread.start()
+    return {"id": note_id, "name": file.filename}
+
+
+def _process_note(note_id: int, text: str, settings: dict):
+    try:
+        chunks = chunk_text(text)
+        if not chunks:
+            db.set_note_status(note_id, "error", error="No text could be read from the notes.")
+            return
+        all_embeddings = []
+        for i in range(0, len(chunks), EMBED_BATCH_SIZE):
+            batch = chunks[i : i + EMBED_BATCH_SIZE]
+            all_embeddings.extend(
+                ai.embed_texts(
+                    batch,
+                    settings["embed_base_url"],
+                    settings["embed_api_key"],
+                    settings["embed_model"],
+                )
+            )
+        db.add_note_chunks(note_id, chunks, all_embeddings)
+        db.set_note_status(note_id, "ready", chunk_count=len(chunks))
+    except Exception as e:
+        db.set_note_status(note_id, "error", error=str(e))
+
+
+@app.get("/api/notes")
+def notes_list(student_id: int = 0, x_admin_password: str = Header(default="")):
+    if not _check_admin(x_admin_password):
+        if not student_id or not db.get_student(student_id):
+            raise HTTPException(status_code=401, detail="Not logged in.")
+    return db.list_notes(student_id or None)
+
+
+@app.delete("/api/notes/{note_id}")
+def remove_note(
+    note_id: int,
+    student_id: int = Form(default=0),
+    x_admin_password: str = Header(default=""),
+):
+    is_admin = _check_admin(x_admin_password)
+    note = db.get_note(note_id)
+    if not note:
+        raise HTTPException(status_code=404, detail="Note not found")
+    if not is_admin and (not student_id or note.get("student_id") != student_id):
+        raise HTTPException(status_code=403, detail="Not allowed to delete this note.")
+    db.delete_note(note_id)
+    return {"ok": True}
+
+
 def _get_chunks(class_name: str | None, sector: str | None = None) -> list[tuple]:
     chunks = db.get_all_chunks(class_name, sector)
     if not chunks:
@@ -290,7 +591,9 @@ def _system_prompt(settings: dict, mode: str = "short") -> str:
         " Never greet, introduce yourself, or write filler such as"
         " 'Sure!' or 'Here is your answer:'."
         " If the answer comes from the class textbook material, briefly"
-        " mention the textbook. Always answer in the same language the"
+        " mention the textbook. When the answer combines information from"
+        " more than one textbook, briefly mention each textbook used."
+        " Always answer in the same language the"
         " student used in their question."
     )
 
@@ -338,6 +641,7 @@ async def ask(
     sector: str = Form(default=""),
     history: str = Form(default=""),
     mode: str = Form(default="short"),
+    student_id: int = Form(default=0),
 ):
     class_name = _resolve_class(class_name)
     sector = sector.strip() or None
@@ -357,7 +661,9 @@ async def ask(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
 
-    sources = search.rank_chunks(chunks, query_embedding)
+    sources = search.rank_chunks_diverse(chunks, query_embedding)
+    sources = _merge_notes(sources, query_embedding, student_id)
+    _log_query(student_id, class_name, sector, combined)
     messages = _ask_messages(combined, sources, settings, _parse_history(history), mode)
 
     try:
@@ -380,6 +686,7 @@ async def ask_stream(
     sector: str = Form(default=""),
     history: str = Form(default=""),
     mode: str = Form(default="short"),
+    student_id: int = Form(default=0),
 ):
     class_name = _resolve_class(class_name)
     sector = sector.strip() or None
@@ -402,7 +709,9 @@ async def ask_stream(
             media_type="text/event-stream",
         )
 
-    sources = search.rank_chunks(chunks, query_embedding)
+    sources = search.rank_chunks_diverse(chunks, query_embedding)
+    sources = _merge_notes(sources, query_embedding, student_id)
+    _log_query(student_id, class_name, sector, combined)
     messages = _ask_messages(combined, sources, settings, _parse_history(history), mode)
 
     async def generate():
@@ -455,6 +764,7 @@ def _embed_query(text: str, settings: dict) -> list[float]:
         settings["embed_base_url"],
         settings["embed_api_key"],
         settings["embed_model"],
+        mode="query",
     )[0]
 
 
@@ -513,7 +823,7 @@ async def answer_sheet(
         query_embedding = await asyncio.to_thread(_embed_query, combined, settings)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
-    sources = search.rank_chunks(chunks, query_embedding, top_k=8)
+    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=8)
     context = "\n\n".join(_format_source(s) for s in sources)
 
     detail = (
@@ -676,7 +986,7 @@ async def revision_notes(
         query_embedding = _embed_query(topic, settings)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
-    sources = search.rank_chunks(chunks, query_embedding, top_k=12)
+    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=12)
     context = "\n\n".join(_format_source(s) for s in sources)
     system_prompt = (
         f"You are an expert teacher for {settings['class_name']}."
@@ -714,7 +1024,7 @@ async def flashcards(
         query_embedding = await asyncio.to_thread(_embed_query, topic, settings)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
-    sources = search.rank_chunks(chunks, query_embedding, top_k=12)
+    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=12)
     context = "\n\n".join(_format_source(s) for s in sources)
     system_prompt = (
         f"You are an expert teacher for {settings['class_name']}."
@@ -799,7 +1109,7 @@ def _retrieve_context(
         query_embedding = _embed_query(query, settings)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
-    return search.rank_chunks(chunks, query_embedding, top_k=top_k)
+    return search.rank_chunks_diverse(chunks, query_embedding, top_k=top_k)
 
 
 @app.post("/api/quiz")

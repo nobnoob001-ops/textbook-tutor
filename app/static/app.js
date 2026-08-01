@@ -105,7 +105,13 @@ function addSources(container, sources) {
   const details = document.createElement("details");
   details.className = "sources";
   const summary = document.createElement("summary");
+  const distinct = new Set(sources.map((s) => String(s.book || "").replace(/\s*\(your notes\)$/, ""))).size;
+  const noteSources = sources.filter((s) => String(s.book || "").includes("your notes")).length;
   summary.textContent = `Read from ${sources.length} part(s) of the textbook`;
+  if (distinct > 1) {
+    summary.textContent = `📚 Cross-referenced ${distinct} books — ${sources.length} part(s)`;
+  }
+  if (noteSources) summary.textContent += ` · ${noteSources} from your notes`;
   details.appendChild(summary);
   for (const s of sources) {
     const item = document.createElement("div");
@@ -1000,6 +1006,114 @@ genQs.addEventListener("click", async () => {
     genQs.textContent = "Make quick sheet";
   }
 });
+
+/* ---------------- my notes ---------------- */
+
+const notesDropzone = document.getElementById("notes-dropzone");
+const notesInput = document.getElementById("notes-input");
+const pickNotes = document.getElementById("pick-notes");
+const notesError = document.getElementById("notes-error");
+const notesOutput = document.getElementById("notes-output");
+
+notesDropzone.addEventListener("dragover", (e) => {
+  e.preventDefault();
+  notesDropzone.classList.add("dragging");
+});
+
+notesDropzone.addEventListener("dragleave", () => notesDropzone.classList.remove("dragging"));
+
+notesDropzone.addEventListener("drop", (e) => {
+  e.preventDefault();
+  notesDropzone.classList.remove("dragging");
+  if (e.dataTransfer.files.length) uploadNotes(e.dataTransfer.files);
+});
+
+pickNotes.addEventListener("click", () => notesInput.click());
+
+notesInput.addEventListener("change", () => {
+  if (notesInput.files.length) uploadNotes(notesInput.files);
+});
+
+async function uploadNotes(files) {
+  clearError(notesError);
+  const student = getStudent();
+  if (!student || !student.id) {
+    showError(notesError, "Log in first so your notes save to your account.");
+    return;
+  }
+  pickNotes.disabled = true;
+  for (const file of files) {
+    const form = new FormData();
+    form.append("student_id", student.id);
+    form.append("file", file);
+    try {
+      await fetch("/api/notes", { method: "POST", body: form });
+    } catch (e) {
+      showError(notesError, e.message);
+    }
+  }
+  pickNotes.disabled = false;
+  notesInput.value = "";
+  loadNotes();
+}
+
+async function loadNotes() {
+  const student = getStudent();
+  notesOutput.innerHTML = "";
+  if (!student || !student.id) {
+    notesOutput.innerHTML = '<p class="hint">Log in to see your saved notes.</p>';
+    return;
+  }
+  try {
+    const items = await fetch("/api/notes?student_id=" + student.id).then((r) => r.json());
+    if (!items.length) {
+      notesOutput.innerHTML = '<p class="hint">No notes yet. Upload your teacher\'s handwritten notes — they will be blended into your answers.</p>';
+      return;
+    }
+    for (const item of items) {
+      const row = document.createElement("div");
+      row.className = "source-book note-row";
+      const name = document.createElement("div");
+      name.className = "note-name";
+      name.textContent = item.name;
+      const meta = document.createElement("div");
+      meta.className = "note-meta";
+      if (item.status === "ready") {
+        meta.textContent = `Ready · ${item.chunk_count} section(s) · ${item.created_at}`;
+      } else if (item.status === "error") {
+        meta.textContent = `Failed · ${item.error || ""}`;
+        meta.style.color = "var(--danger)";
+      } else {
+        meta.textContent = `Processing… · ${item.created_at}`;
+      }
+      const del = document.createElement("button");
+      del.className = "ghost small";
+      del.textContent = "Delete";
+      del.addEventListener("click", () => removeNote(item.id, item.name));
+      row.appendChild(name);
+      row.appendChild(meta);
+      row.appendChild(del);
+      notesOutput.appendChild(row);
+    }
+  } catch (e) {
+    notesOutput.innerHTML = '<p class="hint">Could not load notes.</p>';
+  }
+}
+
+async function removeNote(id, name) {
+  const student = getStudent();
+  if (!confirm('Delete "' + name + '"?')) return;
+  const form = new FormData();
+  form.append("student_id", student.id);
+  try {
+    await fetch("/api/notes/" + id, { method: "DELETE", body: form });
+    loadNotes();
+  } catch (e) {
+    showError(notesError, e.message);
+  }
+}
+
+document.querySelector('#student-tabs .tab[data-tab="my-notes"]').addEventListener("click", loadNotes);
 
 /* ---------------- confetti ---------------- */
 

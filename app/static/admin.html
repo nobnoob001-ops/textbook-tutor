@@ -28,6 +28,8 @@
         <button class="tab active" data-tab="upload">Add Textbook</button>
         <button class="tab" data-tab="library">Library</button>
         <button class="tab" data-tab="papers">Papers</button>
+        <button class="tab" data-tab="insights">Insights</button>
+        <button class="tab" data-tab="syllabus">Syllabus</button>
         <button class="tab" data-tab="settings">Settings</button>
       </nav>
 
@@ -93,6 +95,55 @@
         </div>
       </div>
 
+      <div id="tab-insights" class="tab-panel hidden">
+        <div class="card">
+          <h2>Class insights</h2>
+          <p class="hint">Anonymous struggle stats from the last 7 days. See what students ask about most, who is active, and who needs help.</p>
+          <div id="insight-summary" class="insight-cards"></div>
+          <div class="error hidden" id="insights-error"></div>
+        </div>
+        <div class="card">
+          <h3>Struggle topics</h3>
+          <p class="hint">What students asked about most this week, and the share of students who asked about it. Re-teach the top ones.</p>
+          <div id="popular-topics"></div>
+        </div>
+        <div class="card">
+          <h3>Activity last 14 days</h3>
+          <div id="activity-chart"></div>
+        </div>
+        <div class="card">
+          <h3>By subject</h3>
+          <div id="sector-breakdown"></div>
+        </div>
+        <div class="row-2">
+          <div class="card">
+            <h3>Most active students</h3>
+            <div id="leaderboard"></div>
+          </div>
+          <div class="card">
+            <h3>Students who may need help</h3>
+            <div id="low-performers"></div>
+          </div>
+        </div>
+      </div>
+
+      <div id="tab-syllabus" class="tab-panel hidden">
+        <div class="card">
+          <h2>Syllabus gap check</h2>
+          <p class="hint">Upload the official syllabus. The app compares it with your textbooks and flags topics that are in the syllabus but missing from the books.</p>
+          <div class="dropzone" id="syllabus-dropzone">
+            <p>Drag &amp; drop the official syllabus (PDF, photo, or text)</p>
+            <p class="hint">or</p>
+            <button class="primary" id="pick-syllabus">Choose file</button>
+            <input type="file" id="syllabus-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff,.txt,.md" hidden />
+          </div>
+          <div id="syllabus-upload-error" class="error hidden"></div>
+          <div id="syllabi-list">
+            <p class="hint">Loading…</p>
+          </div>
+        </div>
+      </div>
+
       <div id="tab-settings" class="tab-panel hidden">
         <div class="card">
           <h2>Settings</h2>
@@ -140,6 +191,16 @@
           <button class="ghost" id="edit-cancel">Cancel</button>
         </div>
         <div class="error hidden" id="edit-error"></div>
+      </div>
+    </div>
+
+    <div class="modal hidden" id="report-modal">
+      <div class="modal-card card narrow">
+        <h2 id="report-title">Syllabus gap report</h2>
+        <div id="report-body"></div>
+        <div class="row">
+          <button class="ghost" id="report-close">Close</button>
+        </div>
       </div>
     </div>
 

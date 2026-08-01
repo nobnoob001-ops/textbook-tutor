@@ -33,6 +33,7 @@
       <button class="tab active" data-tab="ask">Ask</button>
       <button class="tab" data-tab="quiz">Quiz</button>
       <button class="tab" data-tab="answer-sheet">Answer Sheet</button>
+      <button class="tab" data-tab="my-notes">My Notes</button>
       <button class="tab" data-tab="exam-focus">Exam Focus</button>
       <button class="tab" data-tab="study-path">Study Path</button>
       <button class="tab" data-tab="revision">Revision</button>
@@ -107,6 +108,23 @@
         </div>
         <div class="error hidden" id="sheet-error"></div>
         <div id="sheet-output"></div>
+      </div>
+    </section>
+
+    <section id="tab-my-notes" class="student-panel hidden">
+      <div class="card">
+        <h2>My notes</h2>
+        <p class="hint">Upload photos or PDFs of your teacher's handwritten notes (or your own). Their content is blended into every answer you get in the Ask tab. Log in first so notes save to your account.</p>
+        <div class="dropzone" id="notes-dropzone">
+          <p>Drag &amp; drop note photos or PDFs here</p>
+          <p class="hint">or</p>
+          <button class="primary" id="pick-notes">Choose files</button>
+          <input type="file" id="notes-input" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff,.txt,.md" multiple hidden />
+        </div>
+        <div class="error hidden" id="notes-error"></div>
+        <div id="notes-output">
+          <p class="hint">Loading…</p>
+        </div>
       </div>
     </section>
 

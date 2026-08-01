@@ -74,6 +74,44 @@ CREATE TABLE IF NOT EXISTS book_scopes (
     UNIQUE(book_id, kind, value),
     FOREIGN KEY (book_id) REFERENCES books (id) ON DELETE CASCADE
 );
+
+CREATE TABLE IF NOT EXISTS queries (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER,
+    class_name TEXT,
+    sector TEXT,
+    question TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS notes (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    student_id INTEGER,
+    name TEXT NOT NULL,
+    status TEXT NOT NULL DEFAULT 'processing',
+    error TEXT,
+    chunk_count INTEGER DEFAULT 0,
+    created_at TEXT DEFAULT (datetime('now'))
+);
+
+CREATE TABLE IF NOT EXISTS notes_chunks (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    note_id INTEGER NOT NULL,
+    chunk_index INTEGER,
+    content TEXT NOT NULL,
+    embedding TEXT,
+    FOREIGN KEY (note_id) REFERENCES notes (id) ON DELETE CASCADE
+);
+
+CREATE TABLE IF NOT EXISTS syllabi (
+    id INTEGER PRIMARY KEY AUTOINCREMENT,
+    name TEXT NOT NULL,
+    content TEXT,
+    status TEXT NOT NULL DEFAULT 'processing',
+    error TEXT,
+    report TEXT,
+    created_at TEXT DEFAULT (datetime('now'))
+);
 """
 
 
@@ -528,6 +566,289 @@ def set_study_path(class_name: str, path: list):
             "INSERT INTO study_paths (class_name, path) VALUES (?, ?)",
             (class_name, json.dumps(path)),
         )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def log_query(student_id: int | None, class_name: str | None, sector: str | None, question: str):
+    conn = _connect()
+    try:
+        conn.execute(
+            "INSERT INTO queries (student_id, class_name, sector, question) VALUES (?, ?, ?, ?)",
+            (student_id if student_id else None, class_name, sector, (question or "")[:2000]),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_queries(days: int) -> list[dict]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT student_id, class_name, sector, question, created_at FROM queries "
+            "WHERE created_at >= datetime('now', ?) ORDER BY created_at DESC",
+            (f"-{days} days",),
+        ).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def count_students() -> int:
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT COUNT(*) AS n FROM students").fetchone()
+        return int(row["n"])
+    finally:
+        conn.close()
+
+
+def get_quiz_stats(days: int) -> dict:
+    conn = _connect()
+    try:
+        row = conn.execute(
+            "SELECT COUNT(*) AS n, AVG(score * 1.0 / total) * 100 AS avg FROM quiz_attempts "
+            "WHERE total > 0 AND created_at >= datetime('now', ?)",
+            (f"-{days} days",),
+        ).fetchone()
+        return {"count": int(row["n"]), "avg_score": round(float(row["avg"] or 0))}
+    finally:
+        conn.close()
+
+
+def get_activity(days: int) -> list[dict]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT date(created_at) AS d, COUNT(*) AS n FROM queries "
+            "WHERE created_at >= datetime('now', ?) GROUP BY d ORDER BY d",
+            (f"-{days} days",),
+        ).fetchall()
+        counts = {r["d"]: r["n"] for r in rows}
+    finally:
+        conn.close()
+    from datetime import date, timedelta
+
+    out = []
+    today = date.today()
+    for i in range(days - 1, -1, -1):
+        d = today - timedelta(days=i)
+        out.append({"date": str(d), "count": counts.get(str(d), 0)})
+    return out
+
+
+def get_leaderboard() -> list[dict]:
+    conn = _connect()
+    try:
+        q_rows = conn.execute(
+            "SELECT student_id, COUNT(*) AS n FROM queries "
+            "WHERE student_id IS NOT NULL GROUP BY student_id"
+        ).fetchall()
+        z_rows = conn.execute(
+            "SELECT student_id, COUNT(*) AS n FROM quiz_attempts GROUP BY student_id"
+        ).fetchall()
+        students = {
+            r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM students").fetchall()
+        }
+    finally:
+        conn.close()
+    combined: dict[int, dict] = {}
+    for r in q_rows:
+        combined.setdefault(r["student_id"], {"questions": 0, "quizzes": 0})["questions"] = r["n"]
+    for r in z_rows:
+        combined.setdefault(r["student_id"], {"questions": 0, "quizzes": 0})["quizzes"] = r["n"]
+    rows = []
+    for sid, v in combined.items():
+        rows.append(
+            {
+                "name": students.get(sid, f"Student #{sid}"),
+                "questions": v["questions"],
+                "quizzes": v["quizzes"],
+                "total": v["questions"] + v["quizzes"] * 2,
+            }
+        )
+    rows.sort(key=lambda x: -x["total"])
+    return rows[:15]
+
+
+def get_low_performers() -> list[dict]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT student_id, AVG(score * 1.0 / total) * 100 AS avg, COUNT(*) AS quizzes "
+            "FROM quiz_attempts WHERE total > 0 GROUP BY student_id HAVING avg < 40"
+        ).fetchall()
+        students = {
+            r["id"]: r["name"] for r in conn.execute("SELECT id, name FROM students").fetchall()
+        }
+    finally:
+        conn.close()
+    return [
+        {
+            "name": students.get(r["student_id"], "Student"),
+            "avg": round(float(r["avg"])),
+            "quizzes": r["quizzes"],
+        }
+        for r in rows
+    ]
+
+
+def add_note(student_id: int | None, name: str) -> int:
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "INSERT INTO notes (student_id, name) VALUES (?, ?)",
+            (student_id if student_id else None, name),
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def set_note_status(note_id: int, status: str, error: str | None = None, chunk_count: int | None = None):
+    conn = _connect()
+    try:
+        if chunk_count is None:
+            conn.execute(
+                "UPDATE notes SET status = ?, error = ? WHERE id = ?",
+                (status, error, note_id),
+            )
+        else:
+            conn.execute(
+                "UPDATE notes SET status = ?, error = ?, chunk_count = ? WHERE id = ?",
+                (status, error, chunk_count, note_id),
+            )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def add_note_chunks(note_id: int, contents: list[str], embeddings: list[list[float]]):
+    conn = _connect()
+    try:
+        rows = [
+            (note_id, i, content, json.dumps(emb))
+            for i, (content, emb) in enumerate(zip(contents, embeddings))
+        ]
+        conn.executemany(
+            "INSERT INTO notes_chunks (note_id, chunk_index, content, embedding) VALUES (?, ?, ?, ?)",
+            rows,
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def get_note_chunks(student_id: int | None) -> list[tuple]:
+    conn = _connect()
+    try:
+        sql = (
+            "SELECT nc.id, n.name AS note, nc.content, nc.embedding "
+            "FROM notes_chunks nc JOIN notes n ON n.id = nc.note_id "
+            "WHERE n.status = 'ready'"
+        )
+        params: list = []
+        if student_id:
+            sql += " AND (n.student_id = ? OR n.student_id IS NULL)"
+            params.append(student_id)
+        rows = conn.execute(sql, params).fetchall()
+        return [(r["id"], r["note"], r["content"], r["embedding"]) for r in rows]
+    finally:
+        conn.close()
+
+
+def list_notes(student_id: int | None = None) -> list[dict]:
+    conn = _connect()
+    try:
+        sql = "SELECT * FROM notes"
+        params: list = []
+        if student_id:
+            sql += " WHERE student_id = ? OR student_id IS NULL"
+            params.append(student_id)
+        sql += " ORDER BY created_at DESC"
+        rows = conn.execute(sql, params).fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_note(note_id: int) -> dict | None:
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT * FROM notes WHERE id = ?", (note_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def delete_note(note_id: int):
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM notes_chunks WHERE note_id = ?", (note_id,))
+        conn.execute("DELETE FROM notes WHERE id = ?", (note_id,))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def add_syllabus(name: str, content: str) -> int:
+    conn = _connect()
+    try:
+        cur = conn.execute(
+            "INSERT INTO syllabi (name, content) VALUES (?, ?)", (name, content)
+        )
+        conn.commit()
+        return cur.lastrowid
+    finally:
+        conn.close()
+
+
+def set_syllabus_status(syllabus_id: int, status: str, error: str | None = None):
+    conn = _connect()
+    try:
+        conn.execute(
+            "UPDATE syllabi SET status = ?, error = ? WHERE id = ?",
+            (status, error, syllabus_id),
+        )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def set_syllabus_report(syllabus_id: int, report: str):
+    conn = _connect()
+    try:
+        conn.execute("UPDATE syllabi SET report = ? WHERE id = ?", (report, syllabus_id))
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def list_syllabi() -> list[dict]:
+    conn = _connect()
+    try:
+        rows = conn.execute("SELECT * FROM syllabi ORDER BY created_at DESC").fetchall()
+        return [dict(r) for r in rows]
+    finally:
+        conn.close()
+
+
+def get_syllabus(syllabus_id: int) -> dict | None:
+    conn = _connect()
+    try:
+        row = conn.execute("SELECT * FROM syllabi WHERE id = ?", (syllabus_id,)).fetchone()
+        return dict(row) if row else None
+    finally:
+        conn.close()
+
+
+def delete_syllabus(syllabus_id: int):
+    conn = _connect()
+    try:
+        conn.execute("DELETE FROM syllabi WHERE id = ?", (syllabus_id,))
         conn.commit()
     finally:
         conn.close()
