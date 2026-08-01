@@ -14,6 +14,7 @@ from app.config import (
     APP_NAME,
     DEFAULT_ADMIN_PASSWORD,
     EMBED_BATCH_SIZE,
+    MIN_MATCH_SCORE,
     STATIC_DIR,
 )
 from app.text_extract import (
@@ -633,6 +634,38 @@ def _ask_messages(
     return messages
 
 
+def _not_covered_messages(
+    combined: str, settings: dict, history: list[dict], mode: str
+) -> list[dict]:
+    detail = (
+        " Answer in the same language the student used in their question."
+        " Keep it short and helpful."
+    )
+    if mode == "detailed":
+        detail = (
+            " Explain in the same language the student used. Keep it short but helpful."
+        )
+    system = (
+        f"You are an expert teacher for {settings['class_name']}."
+        " The student's question is NOT covered by the class textbook."
+        " Do NOT make up an answer or answer from general knowledge."
+        " Politely tell the student this topic is not in the class textbook,"
+        " and suggest related topics they could ask about instead."
+        + detail
+    )
+    messages = [{"role": "system", "content": system}]
+    messages.extend(history)
+    messages.append({"role": "user", "content": combined})
+    return messages
+
+
+def _has_material(sources: list[dict], chunks: list[tuple], query_embedding: list[float]) -> bool:
+    if not sources:
+        return False
+    best = search.best_match(chunks, query_embedding)
+    return bool(best and best["score"] >= MIN_MATCH_SCORE)
+
+
 @app.post("/api/ask")
 async def ask(
     question: str = Form(default=""),
@@ -664,7 +697,12 @@ async def ask(
     sources = search.rank_chunks_diverse(chunks, query_embedding)
     sources = _merge_notes(sources, query_embedding, student_id)
     _log_query(student_id, class_name, sector, combined)
-    messages = _ask_messages(combined, sources, settings, _parse_history(history), mode)
+    history = _parse_history(history)
+    if not _has_material(sources, chunks, query_embedding):
+        messages = _not_covered_messages(combined, settings, history, mode)
+        sources = []
+    else:
+        messages = _ask_messages(combined, sources, settings, history, mode)
 
     try:
         answer = await asyncio.to_thread(_chat_messages, messages, settings)
@@ -712,7 +750,12 @@ async def ask_stream(
     sources = search.rank_chunks_diverse(chunks, query_embedding)
     sources = _merge_notes(sources, query_embedding, student_id)
     _log_query(student_id, class_name, sector, combined)
-    messages = _ask_messages(combined, sources, settings, _parse_history(history), mode)
+    history = _parse_history(history)
+    if not _has_material(sources, chunks, query_embedding):
+        messages = _not_covered_messages(combined, settings, history, mode)
+        sources = []
+    else:
+        messages = _ask_messages(combined, sources, settings, history, mode)
 
     async def generate():
         queue: asyncio.Queue = asyncio.Queue()
