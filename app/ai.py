@@ -4,7 +4,7 @@ import time
 
 import httpx
 
-_TIMEOUT = httpx.Timeout(180.0, connect=20.0)
+_TIMEOUT = httpx.Timeout(300.0, connect=20.0)
 _MAX_ATTEMPTS = 4
 _RETRYABLE = (429, 500, 502, 503)
 
