@@ -842,8 +842,7 @@ async function submitQuiz(questions) {
   head.textContent = `You scored ${score} / ${questions.length}`;
   result.appendChild(head);
   if (score === questions.length) {
-    head.textContent += " — perfect! 🎉";
-    confetti();
+    head.textContent += " — perfect!";
   }
   const pct = Math.round((score / questions.length) * 100);
   const bar = document.createElement("div");
@@ -1114,27 +1113,6 @@ async function removeNote(id, name) {
 }
 
 document.querySelector('#student-tabs .tab[data-tab="my-notes"]').addEventListener("click", loadNotes);
-
-/* ---------------- confetti ---------------- */
-
-const CONFETTI_COLORS = ["#7c6bff", "#b388ff", "#22d3ee", "#34d399", "#f87171", "#fbbf24"];
-
-function confetti() {
-  const layer = document.createElement("div");
-  layer.className = "confetti-layer";
-  document.body.appendChild(layer);
-  for (let i = 0; i < 110; i++) {
-    const p = document.createElement("span");
-    p.className = "confetti-piece";
-    p.style.left = Math.random() * 100 + "vw";
-    p.style.background = CONFETTI_COLORS[i % CONFETTI_COLORS.length];
-    p.style.setProperty("--dur", (2.2 + Math.random() * 1.8).toFixed(2) + "s");
-    p.style.setProperty("--delay", (Math.random() * 0.6).toFixed(2) + "s");
-    p.style.setProperty("--rot", (Math.round(Math.random() * 720) + 360) + "deg");
-    layer.appendChild(p);
-  }
-  setTimeout(() => layer.remove(), 4200);
-}
 
 /* ---------------- init ---------------- */
 

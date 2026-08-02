@@ -1,9 +1,27 @@
 import json
+import re
 import sqlite3
+import unicodedata
 
 from app.config import DATA_DIR
 
 _DB_PATH = DATA_DIR / "tutor.db"
+
+
+def fts_fold(text: str) -> str:
+    """Fold text into searchable tokens: lowercase, drop combining marks so
+    Bengali conjuncts stay whole words for FTS5 BM25 matching."""
+    if not text:
+        return ""
+    text = unicodedata.normalize("NFC", text).lower()
+    keep = []
+    for ch in text:
+        if ch in "\u200c\u200d":
+            continue
+        if unicodedata.category(ch) in ("Mn", "Mc"):
+            continue
+        keep.append(ch)
+    return " ".join(re.findall(r"[^\W\d_]+", "".join(keep)))
 
 SCHEMA = """
 CREATE TABLE IF NOT EXISTS settings (
@@ -112,6 +130,8 @@ CREATE TABLE IF NOT EXISTS syllabi (
     report TEXT,
     created_at TEXT DEFAULT (datetime('now'))
 );
+
+CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(content);
 """
 
 
@@ -120,7 +140,27 @@ def init_db():
     try:
         conn.executescript(SCHEMA)
         _migrate(conn)
+        conn.execute("DROP TABLE IF EXISTS chunks_fts")
+        conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(content)")
+        rows = conn.execute("SELECT id, content FROM chunks").fetchall()
+        conn.executemany(
+            "INSERT INTO chunks_fts(rowid, content) VALUES (?, ?)",
+            [(row["id"], fts_fold(row["content"])) for row in rows],
+        )
         conn.commit()
+    finally:
+        conn.close()
+
+
+def bm25_search(query: str, limit: int = 200) -> list[int]:
+    conn = _connect()
+    try:
+        rows = conn.execute(
+            "SELECT rowid FROM chunks_fts WHERE chunks_fts MATCH ? "
+            "ORDER BY bm25(chunks_fts) LIMIT ?",
+            (query, limit),
+        ).fetchall()
+        return [row["rowid"] for row in rows]
     finally:
         conn.close()
 
@@ -324,6 +364,7 @@ def delete_book(book_id: int):
     try:
         conn.execute("DELETE FROM chunks WHERE book_id = ?", (book_id,))
         conn.execute("DELETE FROM books WHERE id = ?", (book_id,))
+        conn.execute("DELETE FROM chunks_fts WHERE rowid NOT IN (SELECT id FROM chunks)")
         conn.commit()
     finally:
         conn.close()
@@ -336,14 +377,15 @@ def add_chunks(
     try:
         if pages is None:
             pages = [None] * len(contents)
-        rows = [
-            (book_id, i, content, json.dumps(emb), pages[i])
-            for i, (content, emb) in enumerate(zip(contents, embeddings))
-        ]
-        conn.executemany(
-            "INSERT INTO chunks (book_id, chunk_index, content, embedding, page) VALUES (?, ?, ?, ?, ?)",
-            rows,
-        )
+        for i, (content, emb) in enumerate(zip(contents, embeddings)):
+            cur = conn.execute(
+                "INSERT INTO chunks (book_id, chunk_index, content, embedding, page) VALUES (?, ?, ?, ?, ?)",
+                (book_id, i, content, json.dumps(emb), pages[i]),
+            )
+            conn.execute(
+                "INSERT INTO chunks_fts(rowid, content) VALUES (?, ?)",
+                (cur.lastrowid, fts_fold(content)),
+            )
         conn.commit()
     finally:
         conn.close()

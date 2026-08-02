@@ -1,4 +1,5 @@
 import io
+import logging
 
 import pytesseract
 from PIL import Image
@@ -9,14 +10,41 @@ from app.config import CHUNK_OVERLAP, CHUNK_SIZE
 
 _OCR_LANG = "ben+eng"
 
+_EASYOCR_READER = None
+
+
+def _easyocr_reader():
+    global _EASYOCR_READER
+    if _EASYOCR_READER is not None:
+        return _EASYOCR_READER or None
+    try:
+        import easyocr
+
+        _EASYOCR_READER = easyocr.Reader(["bn", "en"], gpu=False)
+    except Exception:
+        logging.exception("EasyOCR init failed; falling back to tesseract")
+        _EASYOCR_READER = False
+    return _EASYOCR_READER or None
+
+
+def _ocr_image(image) -> str:
+    reader = _easyocr_reader()
+    if reader is not None:
+        try:
+            import numpy as np
+
+            results = reader.readtext(np.array(image), paragraph=True)
+            text = "\n".join(line[1] for line in results if line[1].strip())
+            if text.strip():
+                return text
+        except Exception:
+            logging.exception("EasyOCR readtext failed; falling back to tesseract")
+    return pytesseract.image_to_string(image, lang=_OCR_LANG)
+
 
 def extract_from_pdf(data: bytes) -> str:
     parts = [text for _, text in extract_from_pdf_pages(data)]
     return "\n".join(parts)
-
-
-def _ocr_image(image) -> str:
-    return pytesseract.image_to_string(image, lang=_OCR_LANG)
 
 
 def extract_from_pdf_pages(data: bytes) -> list[tuple[int, str]]:
@@ -36,7 +64,7 @@ def _ocr_pdf_pages(data: bytes, max_pages: int = 50) -> list[str]:
 
 def extract_from_image(data: bytes) -> str:
     image = Image.open(io.BytesIO(data))
-    return pytesseract.image_to_string(image, lang=_OCR_LANG)
+    return _ocr_image(image)
 
 
 def extract_from_text(data: bytes) -> str:

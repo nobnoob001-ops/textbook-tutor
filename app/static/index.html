@@ -7,14 +7,8 @@
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
-    <div class="aurora" aria-hidden="true">
-      <span class="blob b1"></span>
-      <span class="blob b2"></span>
-      <span class="blob b3"></span>
-    </div>
     <header>
       <div class="brand">
-        <span class="logo" aria-hidden="true">📖</span>
         <span id="app-name">Textbook Tutor</span>
       </div>
       <div class="header-right">
@@ -45,17 +39,20 @@
     <div id="tab-ask" class="student-panel">
       <main id="chat">
         <div class="welcome" id="welcome">
-          <div class="orb" aria-hidden="true"></div>
-          <h2 class="grad">Ask your class anything</h2>
+          <h2>Ask your class anything</h2>
           <p>Your AI teacher answers from your class textbook. Follow-up questions work — it remembers the conversation.</p>
         </div>
       </main>
 
       <footer>
         <div class="input-row">
-          <button class="attach-btn" id="mic" title="Speak your question">🎤</button>
+          <button class="attach-btn" id="mic" title="Speak your question">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="2" width="6" height="12" rx="3"/><path d="M5 10a7 7 0 0 0 14 0"/><line x1="12" y1="17" x2="12" y2="21"/></svg>
+          </button>
           <textarea id="question" rows="2" placeholder="Type your question, or attach a photo/PDF of a question paper..."></textarea>
-          <label class="attach-btn" for="attach" title="Attach a photo or PDF">📎</label>
+          <label class="attach-btn" for="attach" title="Attach a photo or PDF">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.05l-9.19 9.19a5.83 5.83 0 0 1-8.25-8.25l9.19-9.19a3.95 3.95 0 0 1 5.59 5.59L9.56 18.6a1.99 1.99 0 0 1-2.82-2.82l8.48-8.48"/></svg>
+          </label>
           <input type="file" id="attach" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff" hidden />
           <button class="primary" id="send">Ask</button>
         </div>
@@ -98,7 +95,9 @@
         <p class="hint">Paste a question paper or attach a photo/PDF of it. Every question gets an answer from the textbook.</p>
         <textarea id="paper-text" rows="5" placeholder="Paste the question paper here..."></textarea>
         <div class="input-row">
-          <label class="attach-btn" for="paper-attach" title="Attach a photo or PDF">📎</label>
+          <label class="attach-btn" for="paper-attach" title="Attach a photo or PDF">
+            <svg viewBox="0 0 24 24" width="18" height="18" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M21.4 11.05l-9.19 9.19a5.83 5.83 0 0 1-8.25-8.25l9.19-9.19a3.95 3.95 0 0 1 5.59 5.59L9.56 18.6a1.99 1.99 0 0 1-2.82-2.82l8.48-8.48"/></svg>
+          </label>
           <input type="file" id="paper-attach" accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.tiff" hidden />
           <button class="primary" id="gen-sheet">Create answer sheet</button>
         </div>
@@ -187,7 +186,7 @@
           </select>
           <button class="primary" id="gen-qb">Generate</button>
         </div>
-        <button class="ghost hidden" id="qb-download">⬇ Download as text</button>
+        <button class="ghost hidden" id="qb-download">Download as text</button>
         <div class="error hidden" id="qb-error"></div>
         <div id="qb-output"></div>
       </div>

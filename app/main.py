@@ -193,7 +193,9 @@ def _log_query(student_id: int | None, class_name: str | None, sector: str | Non
         pass
 
 
-def _merge_notes(sources: list[dict], query_embedding: list[float], student_id: int) -> list[dict]:
+def _merge_notes(
+    sources: list[dict], query_embedding: list[float], student_id: int, query_text: str | None = None
+) -> list[dict]:
     if not student_id:
         return sources
     try:
@@ -202,7 +204,7 @@ def _merge_notes(sources: list[dict], query_embedding: list[float], student_id: 
         return sources
     if not note_chunks:
         return sources
-    note_sources = search.rank_chunks(note_chunks, query_embedding, top_k=3)
+    note_sources = search.rank_chunks(note_chunks, query_embedding, top_k=3, query_text=query_text)
     for s in note_sources:
         s["book"] = f"{s['book']} (your notes)"
     return sources + note_sources
@@ -694,8 +696,8 @@ async def ask(
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
 
-    sources = search.rank_chunks_diverse(chunks, query_embedding)
-    sources = _merge_notes(sources, query_embedding, student_id)
+    sources = search.rank_chunks_diverse(chunks, query_embedding, query_text=combined)
+    sources = _merge_notes(sources, query_embedding, student_id, combined)
     _log_query(student_id, class_name, sector, combined)
     history = _parse_history(history)
     if not _has_material(sources, chunks, query_embedding):
@@ -747,8 +749,8 @@ async def ask_stream(
             media_type="text/event-stream",
         )
 
-    sources = search.rank_chunks_diverse(chunks, query_embedding)
-    sources = _merge_notes(sources, query_embedding, student_id)
+    sources = search.rank_chunks_diverse(chunks, query_embedding, query_text=combined)
+    sources = _merge_notes(sources, query_embedding, student_id, combined)
     _log_query(student_id, class_name, sector, combined)
     history = _parse_history(history)
     if not _has_material(sources, chunks, query_embedding):
@@ -866,7 +868,7 @@ async def answer_sheet(
         query_embedding = await asyncio.to_thread(_embed_query, combined, settings)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
-    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=8)
+    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=8, query_text=combined)
     context = "\n\n".join(_format_source(s) for s in sources)
 
     detail = (
@@ -943,7 +945,7 @@ def _analyze_paper(paper_id: int, content: str, settings: dict):
                 embedding_map[text] = emb
         counts: dict[int, int] = {}
         for text, emb in embedding_map.items():
-            matches = search.rank_chunks(chunks, emb, top_k=1)
+            matches = search.rank_chunks(chunks, emb, top_k=1, query_text=text)
             if matches:
                 cid = matches[0]["chunk_id"]
                 counts[cid] = counts.get(cid, 0) + 1
@@ -1029,7 +1031,7 @@ async def revision_notes(
         query_embedding = _embed_query(topic, settings)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
-    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=12)
+    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=12, query_text=topic)
     context = "\n\n".join(_format_source(s) for s in sources)
     system_prompt = (
         f"You are an expert teacher for {settings['class_name']}."
@@ -1067,7 +1069,7 @@ async def flashcards(
         query_embedding = await asyncio.to_thread(_embed_query, topic, settings)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
-    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=12)
+    sources = search.rank_chunks_diverse(chunks, query_embedding, top_k=12, query_text=topic)
     context = "\n\n".join(_format_source(s) for s in sources)
     system_prompt = (
         f"You are an expert teacher for {settings['class_name']}."
@@ -1152,7 +1154,7 @@ def _retrieve_context(
         query_embedding = _embed_query(query, settings)
     except Exception as e:
         raise HTTPException(status_code=502, detail=f"Search failed: {e}")
-    return search.rank_chunks_diverse(chunks, query_embedding, top_k=top_k)
+    return search.rank_chunks_diverse(chunks, query_embedding, top_k=top_k, query_text=query)
 
 
 @app.post("/api/quiz")

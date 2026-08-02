@@ -6,3 +6,5 @@ pypdf
 pdf2image
 pytesseract
 Pillow
+easyocr
+opencv-python-headless
