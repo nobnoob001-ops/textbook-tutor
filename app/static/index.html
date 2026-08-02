@@ -7,34 +7,36 @@
     <link rel="stylesheet" href="/static/style.css" />
   </head>
   <body>
-    <header>
-      <div class="brand">
-        <span id="app-name">Textbook Tutor</span>
-      </div>
-      <div class="header-right">
-        <select id="class-select" title="Choose class" class="hidden"></select>
-        <select id="sector-select" title="Choose subject" class="hidden">
-          <option value="">All subjects</option>
-        </select>
-        <div class="student-badge hidden" id="student-badge">
-          <span id="student-name"></span>
-          <button id="logout" title="Log out">✕</button>
+    <div class="topbar">
+      <header>
+        <div class="brand">
+          <span id="app-name">Textbook Tutor</span>
         </div>
-      </div>
-    </header>
+        <div class="header-right">
+          <select id="class-select" title="Choose class" class="hidden"></select>
+          <select id="sector-select" title="Choose subject" class="hidden">
+            <option value="">All subjects</option>
+          </select>
+          <div class="student-badge hidden" id="student-badge">
+            <span id="student-name"></span>
+            <button id="logout" title="Log out">✕</button>
+          </div>
+        </div>
+      </header>
 
-    <nav class="tabs" id="student-tabs">
-      <button class="tab active" data-tab="ask">Ask</button>
-      <button class="tab" data-tab="quiz">Quiz</button>
-      <button class="tab" data-tab="answer-sheet">Answer Sheet</button>
-      <button class="tab" data-tab="my-notes">My Notes</button>
-      <button class="tab" data-tab="exam-focus">Exam Focus</button>
-      <button class="tab" data-tab="study-path">Study Path</button>
-      <button class="tab" data-tab="revision">Revision</button>
-      <button class="tab" data-tab="flashcards">Flashcards</button>
-      <button class="tab" data-tab="question-bank">Question Bank</button>
-      <button class="tab" data-tab="quick-sheet">Quick Sheet</button>
-    </nav>
+      <nav class="tabs" id="student-tabs">
+        <button class="tab active" data-tab="ask">Ask</button>
+        <button class="tab" data-tab="quiz">Quiz</button>
+        <button class="tab" data-tab="answer-sheet">Answer Sheet</button>
+        <button class="tab" data-tab="my-notes">My Notes</button>
+        <button class="tab" data-tab="exam-focus">Exam Focus</button>
+        <button class="tab" data-tab="study-path">Study Path</button>
+        <button class="tab" data-tab="revision">Revision</button>
+        <button class="tab" data-tab="flashcards">Flashcards</button>
+        <button class="tab" data-tab="question-bank">Question Bank</button>
+        <button class="tab" data-tab="quick-sheet">Quick Sheet</button>
+      </nav>
+    </div>
 
     <div id="tab-ask" class="student-panel">
       <main id="chat">

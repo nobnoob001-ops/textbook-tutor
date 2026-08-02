@@ -109,7 +109,7 @@ function addSources(container, sources) {
   const noteSources = sources.filter((s) => String(s.book || "").includes("your notes")).length;
   summary.textContent = `Read from ${sources.length} part(s) of the textbook`;
   if (distinct > 1) {
-    summary.textContent = `📚 Cross-referenced ${distinct} books — ${sources.length} part(s)`;
+    summary.textContent = `Cross-referenced ${distinct} books — ${sources.length} part(s)`;
   }
   if (noteSources) summary.textContent += ` · ${noteSources} from your notes`;
   details.appendChild(summary);
@@ -118,7 +118,7 @@ function addSources(container, sources) {
     item.className = "source-item";
     const page = s.page ? ` — page ${s.page}` : "";
     item.innerHTML =
-      `<div class="source-book">📖 ${escapeHtml(s.book)}${page}</div>` +
+      `<div class="source-book">${escapeHtml(s.book)}${page}</div>` +
       `<div class="source-text">${escapeHtml(s.text)}</div>`;
     details.appendChild(item);
   }
@@ -129,7 +129,8 @@ function addListen(container, text) {
   if (!("speechSynthesis" in window)) return;
   const btn = document.createElement("button");
   btn.className = "ghost small listen";
-  btn.textContent = "🔊 Listen";
+  btn.innerHTML =
+    '<svg viewBox="0 0 24 24" width="14" height="14" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5"/><path d="M19 8a6 6 0 0 1 0 8"/><path d="M16 10.5a3 3 0 0 1 0 3"/></svg> Listen';
   btn.addEventListener("click", () => {
     speechSynthesis.cancel();
     const u = new SpeechSynthesisUtterance(text);
@@ -376,6 +377,8 @@ async function send() {
     welcome.classList.add("hidden");
   }
   const typing = addBubble("", "assistant typing");
+  typing.innerHTML =
+    '<span class="dot"></span><span class="dot"></span><span class="dot"></span>';
 
   let answerText = "";
   try {
