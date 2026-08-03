@@ -48,32 +48,21 @@ Python · FastAPI · SQLite · EasyOCR (PyTorch) · hybrid retrieval (FTS5 BM25 
 
 In development. Available to students from a live link; admin is password-protected.
 
-## Deploy on Hugging Face Spaces (free, no credit card)
+## Run on Google Colab (free, just your Gmail)
 
-The app runs on Hugging Face's free tier and auto-redeploys every time you push to GitHub. No phone, tunnel, or always-on computer needed.
+The full app — including Bengali OCR (EasyOCR) — runs in Google Colab. Login with Gmail only, no credit card. Your database and OCR models are saved to Google Drive, so nothing is lost between sessions.
 
-1. Create a free account at https://huggingface.co/join
-2. Go to https://huggingface.co/new-space
-3. Name it (e.g. `textbook-tutor`), pick **Docker** as the SDK, set license to **Apache 2.0**, and click **Create Space**
-4. In the Space → **Settings**:
-   - **Repository** → Connect to your GitHub repo: `nobnoob001-ops/textbook-tutor`
-   - **Persistent storage** → enable and set to **10 GB** (this keeps your SQLite database, uploaded notes, and OCR models across restarts)
-   - The Space builds and starts on its own. Your app gets a permanent URL like `https://<yourname>-textbook-tutor.hf.space`
+### Steps
 
-### First-time setup (admin)
+1. Open the notebook: **https://colab.research.google.com/github/nobnoob001-ops/textbook-tutor/blob/master/run_in_colab.ipynb**
+2. Runtime menu → **Run all**
+3. Choose your Gmail and **Allow** Drive access when asked
+4. The last cell prints a shareable link. Share it with students.
+5. Manage at `LINK/admin` (default password `admin123` — change it in Settings)
 
-1. Open `https://<yourname>-textbook-tutor.hf.space/admin`
-2. Log in with the default admin password `admin123`
-3. In **Settings**, immediately change the admin password, then add your chat and embedding API URLs + keys
-4. In **Add Textbook**, upload your class textbook (PDF/photos). It gets OCR'd and indexed
-5. Share `https://<yourname>-textbook-tutor.hf.space` with students
+The first run downloads the OCR models (~2 min); afterwards they load from Drive instantly. Every 60s the database is backed up to Drive.
 
-Note: the free tier sleeps after ~48h of no visitors and wakes on the next visit (first load can take a minute). Regular student use keeps it awake.
-
-### Persistence
-
-- The database lives in `/data/tutor.db` (persistent storage). Never commit `*.db` or `data/` to git — the settings table contains your API keys.
-- OCR models are cached in `/data/.EasyOCR`.
+Free Colab limits: a session lasts at most ~12 hours and ends if the tab is closed. To restart, reopen the notebook and Run all again — data is restored from Drive.
 
 ### Local dev
 
