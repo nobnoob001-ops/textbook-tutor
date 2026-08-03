@@ -52,17 +52,24 @@ In development. Available to students from a live link; admin is password-protec
 
 The full app — including Bengali OCR (EasyOCR) — runs in Google Colab. Login with Gmail only, no credit card. Your database and OCR models are saved to Google Drive, so nothing is lost between sessions.
 
-### Steps
+### Steps (Android-friendly)
 
 1. Open the notebook: **https://colab.research.google.com/github/nobnoob001-ops/textbook-tutor/blob/master/run_in_colab.ipynb**
-2. Runtime menu → **Run all**
-3. Choose your Gmail and **Allow** Drive access when asked
+2. Tap **Runtime → Run all** (via the ☰ menu on phones)
+3. A Google popup opens asking for Drive access → pick your Gmail → **Allow** (you have 2 minutes; if you miss it, the notebook continues without Drive)
 4. The last cell prints a shareable link. Share it with students.
 5. Manage at `LINK/admin` (default password `admin123` — change it in Settings)
 
-The first run downloads the OCR models (~2 min); afterwards they load from Drive instantly. Every 60s the database is backed up to Drive.
+The first run installs packages and downloads ~300MB of OCR models (use **Wi-Fi**). After that it starts fast. Every 60s the database is backed up to Google Drive.
 
-Free Colab limits: a session lasts at most ~12 hours and ends if the tab is closed. To restart, reopen the notebook and Run all again — data is restored from Drive.
+### Free Colab limits (be honest with yourself about these)
+
+- A session lasts at most **~12 hours**, then stops. Restart = reopen the notebook → **Run all** → data is restored from Drive.
+- **Keep the browser tab open and the screen awake** during class. If the phone locks or the tab is killed, students lose access.
+- The last cell runs a keep-alive loop so the 90-minute idle timeout never triggers.
+- Google occasionally cuts off free sessions that serve websites 24/7. Treat this as a daily "start your server" routine, not a permanent host.
+
+If the Drive popup is blocked, use the two backup cells at the bottom to download/upload `tutor.db` manually.
 
 ### Local dev
 
