@@ -140,6 +140,8 @@ def init_db():
     try:
         conn.executescript(SCHEMA)
         _migrate(conn)
+        for t in ("chunks_ai", "chunks_ad", "chunks_au"):
+            conn.execute(f"DROP TRIGGER IF EXISTS {t}")
         conn.execute("DROP TABLE IF EXISTS chunks_fts")
         conn.execute("CREATE VIRTUAL TABLE IF NOT EXISTS chunks_fts USING fts5(content)")
         rows = conn.execute("SELECT id, content FROM chunks").fetchall()

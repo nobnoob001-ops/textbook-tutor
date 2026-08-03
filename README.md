@@ -46,4 +46,37 @@ Python · FastAPI · SQLite · EasyOCR (PyTorch) · hybrid retrieval (FTS5 BM25 
 
 ## Status
 
-In development. Available to students from a live link; admin is kept private.
+In development. Available to students from a live link; admin is password-protected.
+
+## Deploy on Hugging Face Spaces (free, no credit card)
+
+The app runs on Hugging Face's free tier and auto-redeploys every time you push to GitHub. No phone, tunnel, or always-on computer needed.
+
+1. Create a free account at https://huggingface.co/join
+2. Go to https://huggingface.co/new-space
+3. Name it (e.g. `textbook-tutor`), pick **Docker** as the SDK, set license to **Apache 2.0**, and click **Create Space**
+4. In the Space → **Settings**:
+   - **Repository** → Connect to your GitHub repo: `nobnoob001-ops/textbook-tutor`
+   - **Persistent storage** → enable and set to **10 GB** (this keeps your SQLite database, uploaded notes, and OCR models across restarts)
+   - The Space builds and starts on its own. Your app gets a permanent URL like `https://<yourname>-textbook-tutor.hf.space`
+
+### First-time setup (admin)
+
+1. Open `https://<yourname>-textbook-tutor.hf.space/admin`
+2. Log in with the default admin password `admin123`
+3. In **Settings**, immediately change the admin password, then add your chat and embedding API URLs + keys
+4. In **Add Textbook**, upload your class textbook (PDF/photos). It gets OCR'd and indexed
+5. Share `https://<yourname>-textbook-tutor.hf.space` with students
+
+Note: the free tier sleeps after ~48h of no visitors and wakes on the next visit (first load can take a minute). Regular student use keeps it awake.
+
+### Persistence
+
+- The database lives in `/data/tutor.db` (persistent storage). Never commit `*.db` or `data/` to git — the settings table contains your API keys.
+- OCR models are cached in `/data/.EasyOCR`.
+
+### Local dev
+
+```bash
+python run.py        # serves on http://localhost:8080
+```

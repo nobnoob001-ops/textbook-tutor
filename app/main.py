@@ -1,5 +1,4 @@
 import asyncio
-import ipaddress
 import json
 import re
 import threading
@@ -28,27 +27,6 @@ from app.text_extract import (
 
 app = FastAPI(title=APP_NAME)
 app.mount("/static", StaticFiles(directory=str(STATIC_DIR)), name="static")
-
-
-def _is_local_request(host: str) -> bool:
-    hostname = host.split(":", 1)[0].strip().lower().strip("[]")
-    if hostname in ("localhost", "127.0.0.1", "::1"):
-        return True
-    try:
-        return bool(ipaddress.ip_address(hostname).is_private)
-    except ValueError:
-        return False
-
-
-@app.middleware("http")
-async def block_remote_admin(request, call_next):
-    """Keep the admin panel off the public tunnel: admin is only reachable
-    from the local server / private network."""
-    path = request.url.path
-    if path.startswith("/admin") or path.startswith("/api/admin") or path.startswith("/static/admin."):
-        if not _is_local_request(request.headers.get("host", "")):
-            return JSONResponse(status_code=403, content={"detail": "Admin is local-only."})
-    return await call_next(request)
 
 DEFAULT_SETTINGS = {
     "class_name": "this class",

@@ -2,7 +2,7 @@ import os
 from pathlib import Path
 
 BASE_DIR = Path(__file__).resolve().parent.parent
-DATA_DIR = BASE_DIR / "data"
+DATA_DIR = Path(os.getenv("DATA_DIR", str(BASE_DIR / "data")))
 STATIC_DIR = Path(__file__).resolve().parent / "static"
 
 APP_NAME = os.getenv("APP_NAME", "Textbook Tutor")
